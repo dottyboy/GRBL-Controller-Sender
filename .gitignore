@@ -1,0 +1,21 @@
+# Build artifacts (typhonbuild64 -B --ws=qt5) - rebuildable from source,
+# not needed in the repo, and would bloat it (the .dbg alone is ~44MB).
+lib/
+backup/
+*.o
+*.ppu
+*.compiled
+*.or
+*.res
+*.dbg
+GRBL-Controller-Sender
+*.exe
+
+# Personal editor/IDE config - not shared project config, machine-specific.
+.vscode/
+
+# reference-only clones of forked upstream projects, not part of this project's own repo
+References/
+
+# third-party build tooling binaries, not part of this project's own repo
+tools/
