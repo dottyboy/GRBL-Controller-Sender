@@ -5,9 +5,31 @@ unit usender;
 interface
 
 uses
-  Classes, SysUtils, SyncObjs,
+  Classes, SysUtils, SyncObjs, Math,
   ucncstate, ugenericcontroller, ugrbl0, ugrbl1, usmoothie, ug2core, userial,
-  uxmodem, ulasercooling;
+  uxmodem, ulasercooling, ustatebuilder;
+
+type
+  // Laser job progress, for the resume-from-position dialog (plan Phase 5).
+  // Deliberately tracks the flat BODY line list only (no header/footer,
+  // no pass-repeat expansion) - the same unit ulasersender.pas's
+  // ContinueLaserProgramFromLine already resumes from (AProgram.Commands),
+  // so "Executed" is directly usable as an index into it. Multi-pass jobs
+  // (BuildProgram(APassCount > 1)) resume from the start of the pass the
+  // failure happened in, not the exact repeat - a disclosed limitation,
+  // not solved here (see the plan file's Phase 5 note).
+  TLaserJobProgress = record
+    // Points at TSender's own internally-OWNED copy (see BeginLaserJob) -
+    // callers hand BeginLaserJob a locally-scoped flattened list in both
+    // ulasersender.pas call sites, so this must never alias caller-owned
+    // memory that might be freed while a job is still Active.
+    BodyLines: TStringList;
+    HeaderCount: Integer;    // lines enqueued before BodyLines[0] this run
+    Target: Integer;         // BodyLines.Count
+    Sent: Integer;           // body lines physically written so far
+    Executed: Integer;       // body lines acknowledged (ok/error) so far
+    Active: Boolean;
+  end;
 
 const
   RX_BUFFER_SIZE = 128;   // Sender.py RX_BUFFER_SIZE
@@ -92,11 +114,41 @@ type
     // module (ulasersender.pas); False (the default) leaves ordinary
     // milling/routing jobs completely unaffected.
     FIsLaserMode: Boolean;
+    // Plan Phase 5: progress counters for the resume-from-position dialog.
+    // Reset by BeginLaserJob (called from ulasersender.pas's
+    // RunLaserProgram/ContinueLaserProgramFromLine right after enqueueing),
+    // advanced additively in TSenderThread.Execute - see the comments
+    // there for exactly how "sent"/"executed" are measured without
+    // requiring TSafeStringQueue itself to know about laser jobs at all.
+    FLaserJob: TLaserJobProgress;
+    // Raw counters, mutated only by TSenderThread.Execute (see there for how
+    // "sent"/"acked" are measured), read (without a lock, matching this
+    // unit's existing convention for FPaused/FSioWaitFlag/FStopRequested)
+    // by LaserJobProgress to compute the body-relative Sent/Executed -
+    // count everything physically written/acked since BeginLaserJob, which
+    // includes the run's header lines, so the body-relative value is this
+    // minus HeaderCount, clamped to [0, Target].
+    FLaserRawSent: Integer;
+    FLaserRawAcked: Integer;
+    // Owned copies backing FLaserJob.BodyLines / the resume footer - see
+    // BeginLaserJob. Footer is tracked separately (not part of
+    // TLaserJobProgress, which the resume dialog only needs Body/Target
+    // from) purely so ResumeLaserJob can re-append it without requiring
+    // the caller to still have the original TLaserProgram around.
+    FLaserBodyLinesOwned: TStringList;
+    FLaserFooterLinesOwned: TStringList;
     // Auto-cooling (plan Phase 7): a duty-cycle pulse-cooling timer, only
     // ticked (see TSenderThread.Execute) while FIsLaserMode AND
     // FState.BoardInfo.SupportAutoCooling. Created unconditionally in
     // Create/Destroy - the gating happens at the call site, not here.
     FCoolingCycle: TCoolingCycle;
+    // Plan Phase 9: per-job user toggle (the Laser Control tab's "Auto-
+    // cooling" checkbox) - the underlying TCoolingCycle always exists
+    // (created unconditionally, see Create), this just gates whether
+    // TSenderThread.Execute ticks it for real. Defaults True so an
+    // untouched checkbox (or any pre-Phase-9 code path) keeps today's
+    // existing behavior - a supported board always cooled.
+    FCoolingEnabled: Boolean;
     // Phase G: True while uxmodem.pas is doing a synchronous, exclusive
     // XMODEM exchange on the calling thread - TSenderThread.Execute skips
     // its own reads/writes of FSerialLink entirely while this is set, so
@@ -175,9 +227,25 @@ type
     function UploadFile(const ABoardFileName: string; const AData: TBytes): Boolean;
     function DownloadFile(const ABoardFileName: string; out AData: TBytes): Boolean;
 
+    // Plan Phase 5: called right after a laser job's lines have been
+    // pushed onto the queue, so progress tracking restarts cleanly for
+    // this run. ABodyLines/AFooterLines are COPIED (Assign) - the caller's
+    // own list can be freed right after this call returns.
+    procedure BeginLaserJob(ABodyLines, AFooterLines: TStringList; AHeaderCount: Integer);
+    procedure EndLaserJob;
+    function LaserJobProgress: TLaserJobProgress;
+    // Resumes the CURRENTLY TRACKED job (FLaserJob, as set up by the last
+    // BeginLaserJob call) from AFromLine onward, via ustatebuilder.pas's
+    // state replay - the crash-recovery entry point umain.pas's
+    // SenderStateChanged hook calls after TResumeJobForm returns, and what
+    // ulasersender.pas's ContinueLaserProgramFromLine delegates to for an
+    // explicit "resume a loaded file" action. No-op if no job is Active.
+    procedure ResumeLaserJob(AFromLine: Integer; const AOpts: TResumeOptions);
+
     property Controller: TGenericController read FController;
     property IsLaserMode: Boolean read FIsLaserMode write FIsLaserMode;
     property CoolingCycle: TCoolingCycle read FCoolingCycle;
+    property CoolingEnabled: Boolean read FCoolingEnabled write FCoolingEnabled;
     property OnLog: TSenderLogEvent read FOnLog write FOnLog;
     property OnStateChanged: TSenderNotifyEvent read FOnStateChanged write FOnStateChanged;
     property OnProbeResult: TProbeResultEvent read FOnProbeResult write FOnProbeResult;
@@ -261,6 +329,7 @@ var
   hasTosend: Boolean;
   line: string;
   watchdogMismatch: Integer;
+  queueCountBefore, acked: Integer;
 begin
   tr := GetTickCount64;
   tosend := '';
@@ -314,8 +383,19 @@ begin
     line := FSender.FSerialLink.ReadLine(SERIAL_TIMEOUT_MS);
     if line <> '' then
     begin
+      // Laser job progress (plan Phase 5): every 'ok'/error response pops
+      // exactly one entry off FQueueInternal (ugenericcontroller.pas's
+      // ParseLine), so a drop in Count here means one more line - whatever
+      // it was - just got acknowledged. Purely additive/observational, does
+      // not change what ParseLine itself does with the line.
+      queueCountBefore := FSender.FQueueInternal.Count;
       if not FSender.FController.ParseLine(line, FSender.FQueueInternal) then
         FSender.LogReceived(line);
+      if FSender.FIsLaserMode and FSender.FLaserJob.Active then
+      begin
+        acked := queueCountBefore - FSender.FQueueInternal.Count;
+        if acked > 0 then Inc(FSender.FLaserRawAcked, acked);
+      end;
       Synchronize(@FSender.FlushToUI);
     end;
 
@@ -354,7 +434,8 @@ begin
     // in-flight g-code and the user hasn't already paused things for an
     // unrelated reason - see ulasercooling.pas's own comment on why this
     // is time-driven rather than StateStr-driven.
-    if FSender.FIsLaserMode and FSender.FState.BoardInfo.SupportAutoCooling then
+    if FSender.FIsLaserMode and FSender.FState.BoardInfo.SupportAutoCooling and
+       FSender.FCoolingEnabled then
       FSender.FCoolingCycle.Tick(
         ((FSender.FQueueInternal.Count > 0) or (FSender.FQueue.Count > 0)) and
         not FSender.FPaused)
@@ -382,6 +463,8 @@ begin
     if hasTosend and (FSender.FQueueInternal.SumLengths < RX_BUFFER_SIZE) then
     begin
       FSender.FSerialLink.WriteLine(tosend);
+      if FSender.FIsLaserMode and FSender.FLaserJob.Active then
+        Inc(FSender.FLaserRawSent);
       hasTosend := False;
       tosend := '';
     end;
@@ -402,11 +485,16 @@ begin
   FController := TGRBL1Controller.Create(Self as IControllerHost);
   FState.Controller := 'GRBL1';
   FCoolingCycle := TCoolingCycle.Create(@FeedHold, @Resume);
+  FCoolingEnabled := True;
+  FLaserBodyLinesOwned := TStringList.Create;
+  FLaserFooterLinesOwned := TStringList.Create;
 end;
 
 destructor TSender.Destroy;
 begin
   Disconnect;
+  FLaserFooterLinesOwned.Free;
+  FLaserBodyLinesOwned.Free;
   FCoolingCycle.Free;
   FController.Free;
   FPendingLogIsError.Free;
@@ -560,6 +648,8 @@ end;
 
 procedure TSender.Disconnect;
 begin
+  EndLaserJob; // any in-flight job's progress no longer means anything once
+               // the connection (and FQueueInternal's counts) is gone
   if Assigned(FThread) then
   begin
     FThread.Terminate;
@@ -674,6 +764,89 @@ end;
 procedure TSender.StopStreaming;
 begin
   FStopRequested := True;
+end;
+
+procedure TSender.BeginLaserJob(ABodyLines, AFooterLines: TStringList; AHeaderCount: Integer);
+begin
+  // Assign() copies - safe even if ABodyLines/AFooterLines alias this
+  // TSender's OWN owned lists (ResumeLaserJob never does that; see its own
+  // comment on why it snapshots the footer first), but is not free to
+  // assume otherwise, so the copy happens unconditionally either way.
+  FLaserBodyLinesOwned.Assign(ABodyLines);
+  FLaserFooterLinesOwned.Assign(AFooterLines);
+  FLaserJob.BodyLines := FLaserBodyLinesOwned;
+  FLaserJob.HeaderCount := AHeaderCount;
+  FLaserJob.Target := FLaserBodyLinesOwned.Count;
+  FLaserJob.Sent := 0;
+  FLaserJob.Executed := 0;
+  FLaserJob.Active := True;
+  FLaserRawSent := 0;
+  FLaserRawAcked := 0;
+end;
+
+procedure TSender.EndLaserJob;
+begin
+  FLaserJob.Active := False;
+  FLaserJob.BodyLines := nil;
+  FLaserBodyLinesOwned.Clear;
+  FLaserFooterLinesOwned.Clear;
+end;
+
+function TSender.LaserJobProgress: TLaserJobProgress;
+begin
+  Result := FLaserJob;
+  if FLaserJob.Active then
+  begin
+    Result.Sent := EnsureRange(FLaserRawSent - FLaserJob.HeaderCount, 0, FLaserJob.Target);
+    Result.Executed := EnsureRange(FLaserRawAcked - FLaserJob.HeaderCount, 0, FLaserJob.Target);
+  end;
+end;
+
+procedure TSender.ResumeLaserJob(AFromLine: Integer; const AOpts: TResumeOptions);
+var
+  preambleCount, i, footerCount: Integer;
+  resumeLines, newBody, footerCopy: TStringList;
+begin
+  if not FLaserJob.Active then Exit;
+
+  // Snapshot the footer BEFORE calling BeginLaserJob below (which
+  // re-assigns FLaserFooterLinesOwned) - TStrings.Assign(Self) would
+  // Clear() the source out from under itself if we passed the live owned
+  // list straight through, so a genuinely separate copy is taken first.
+  footerCopy := TStringList.Create;
+  try
+    footerCopy.Assign(FLaserFooterLinesOwned);
+    footerCount := footerCopy.Count;
+
+    // FLaserBodyLinesOwned itself is only READ by BuildResumeProgram (never
+    // mutated - see ustatebuilder.pas), so it's safe to pass directly here,
+    // unlike the footer above.
+    resumeLines := BuildResumeProgram(FLaserBodyLinesOwned, AFromLine, AOpts, preambleCount);
+    try
+      for i := 0 to footerCount - 1 do
+        resumeLines.Add(footerCopy[i]);
+
+      // Re-base progress tracking on the TRIMMED remaining body (index 0 =
+      // AFromLine of the run that just failed) - mirrors LaserGRBL's own
+      // mTP.JobContinue(file, position, ...) re-basing Target at the resume
+      // point, not a shortcut.
+      newBody := TStringList.Create;
+      try
+        for i := preambleCount to resumeLines.Count - footerCount - 1 do
+          newBody.Add(resumeLines[i]);
+        BeginLaserJob(newBody, footerCopy, preambleCount);
+      finally
+        newBody.Free;
+      end;
+
+      IsLaserMode := True;
+      EnqueueLines(resumeLines);
+    finally
+      resumeLines.Free;
+    end;
+  finally
+    footerCopy.Free;
+  end;
 end;
 
 end.

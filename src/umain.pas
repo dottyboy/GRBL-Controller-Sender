@@ -9,7 +9,8 @@ uses
   usender, uappconfig, ugcode, uconnectframe, udroframe, ujogframe,
   uterminalframe, ueditorframe, usettingsform, uopengl3dframe,
   uprobeframe, utoolsframe, usettingsgridframe, ufluidncframe,
-  ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys;
+  ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
+  ustatebuilder, uresumejobform, ulasercontrolframe;
 
 type
 
@@ -46,6 +47,7 @@ type
     TabFluidNC: TTabSheet;
     TabFirmwareBuilder: TTabSheet;
     TabSpoilboard: TTabSheet;
+    TabLaserControl: TTabSheet;
     TabTerminal: TTabSheet;
     ConnectFrame: TConnectFrame;
     DROFrame: TDROFrame;
@@ -59,10 +61,21 @@ type
     FluidNCFrame: TFluidNCFrame;
     FirmwareBuilderFrame: TFirmwareBuilderFrame;
     SpoilboardFrame: TSpoilboardFrame;
+    LaserControlFrame: TLaserControlFrame;
     FLastFirmwareName: string; // tracks BoardInfo.FirmwareName so TabFluidNC
                                 // is only rebuilt/toggled on an actual change
+    // Plan Phase 9: tracks BoardInfo.SupportLaserMode so TabLaserControl is
+    // only rebuilt/toggled on an actual change, same pattern as
+    // FLastFirmwareName/TabFluidNC just above.
+    FLastSupportLaserMode: Boolean;
+    // Plan Phase 5: edge-trigger guard for the resume-from-position dialog -
+    // True while the current Alarm has already been offered, so it doesn't
+    // re-fire on every subsequent status poll while still in Alarm; reset
+    // the moment StateStr leaves Alarm. See SenderStateChanged.
+    FAlarmDialogArmed: Boolean;
     procedure SenderLog(Sender: TObject; const ALine: string; IsError: Boolean);
     procedure SenderStateChanged(Sender: TObject);
+    procedure OfferLaserResume;
     procedure ApplyConnectionDefaults;
     procedure CaptureConnectionDefaults;
     procedure View3DRequestParse(Sender: TObject);
@@ -128,6 +141,10 @@ begin
   TabSpoilboard := Pages.AddTabSheet;
   TabSpoilboard.Caption := 'Spoilboard';
 
+  TabLaserControl := Pages.AddTabSheet;
+  TabLaserControl.Caption := 'Laser Control';
+  TabLaserControl.TabVisible := False; // shown only once BoardInfo.SupportLaserMode is known True
+
   TabTerminal := Pages.AddTabSheet;
   TabTerminal.Caption := 'Terminal';
 
@@ -178,6 +195,12 @@ begin
   // SetSender is used only by "Send Travel Limits" ($130/$131/$132) -
   // generating/loading g-code never touches the sender.
   SpoilboardFrame.SetSender(FSender);
+
+  LaserControlFrame := TLaserControlFrame.Create(TabLaserControl);
+  LaserControlFrame.Parent := TabLaserControl;
+  LaserControlFrame.SetSender(FSender);
+  LaserControlFrame.SetAppConfig(FAppConfig);
+  LaserControlFrame.SetEditorLines(EditorFrame.SynEditor.Lines);
 
   TerminalFrame := TTerminalFrame.Create(TabTerminal);
   TerminalFrame.Parent := TabTerminal;
@@ -340,6 +363,9 @@ begin
 end;
 
 procedure TForm1.SenderStateChanged(Sender: TObject);
+var
+  progress: TLaserJobProgress;
+  isAlarm: Boolean;
 begin
   DROFrame.SetAxisConfig(FSender.State.BoardInfo.AxisLetters);
   JogFrame.SetAxisConfig(FSender.State.BoardInfo.AxisLetters);
@@ -351,6 +377,61 @@ begin
     FLastFirmwareName := FSender.State.BoardInfo.FirmwareName;
     TabFluidNC.TabVisible := FLastFirmwareName = 'FluidNC';
   end;
+
+  if FSender.State.BoardInfo.SupportLaserMode <> FLastSupportLaserMode then
+  begin
+    FLastSupportLaserMode := FSender.State.BoardInfo.SupportLaserMode;
+    TabLaserControl.TabVisible := FLastSupportLaserMode;
+  end;
+  LaserControlFrame.RefreshState;
+
+  // Plan Phase 5: crash-recovery prompt, edge-triggered on the transition
+  // INTO Alarm (FAlarmDialogArmed guards repeats while still in Alarm; an
+  // alarm with no active-and-unfinished laser job to resume - e.g. one
+  // triggered by manual jogging - is correctly left alone). No separate
+  // forced M5 here before the dialog: grbl itself rejects ordinary g-code
+  // with error:9 (locked) while in Alarm until $X/$H, so an M5 sent from
+  // here wouldn't reach the laser any sooner than grbl's own Alarm entry
+  // already should have. Note this call chain runs on the UI thread via
+  // TSenderThread.Execute's Synchronize (see FlushToUI) - ShowModal below
+  // blocks that Synchronize call, so the serial read/write loop pauses for
+  // as long as the dialog is open. Acceptable here: the machine is already
+  // halted (Alarm) and grbl won't act on further commands until $X/$H
+  // anyway, so nothing time-sensitive is being delayed.
+  isAlarm := Pos('ALARM', FSender.State.StateStr) = 1;
+  progress := FSender.LaserJobProgress;
+  if isAlarm and not FAlarmDialogArmed and progress.Active and
+     (progress.Executed < progress.Target) then
+  begin
+    FAlarmDialogArmed := True;
+    OfferLaserResume;
+  end
+  else if not isAlarm then
+    FAlarmDialogArmed := False;
+end;
+
+procedure TForm1.OfferLaserResume;
+var
+  progress: TLaserJobProgress;
+  cause: string;
+  resumeLine: Integer;
+  opts: TResumeOptions;
+  hasWCO: Boolean;
+begin
+  progress := FSender.LaserJobProgress;
+  if FSender.State.ErrLine <> '' then
+    cause := FSender.State.ErrLine
+  else
+    cause := T('Unexpected Alarm during laser job');
+
+  hasWCO := (FSender.State.WCOX <> 0) or (FSender.State.WCOY <> 0) or (FSender.State.WCOZ <> 0);
+
+  if TResumeJobForm.Execute(progress.Executed, progress.Sent, progress.Target, cause,
+       hasWCO, FSender.State.WCOX, FSender.State.WCOY, FSender.State.WCOZ,
+       resumeLine, opts) then
+    FSender.ResumeLaserJob(resumeLine, opts)
+  else
+    FSender.EndLaserJob; // declined - stop tracking a job that won't be resumed
 end;
 
 end.
