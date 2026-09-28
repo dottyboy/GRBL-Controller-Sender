@@ -24,11 +24,16 @@ type
     BtnYPlus: TButton;
     BtnZMinus: TButton;
     BtnZPlus: TButton;
+    BtnNW: TButton;
+    BtnNE: TButton;
+    BtnSW: TButton;
+    BtnSE: TButton;
     CboStep: TComboBox;
     CboStepZ: TComboBox;
     LblStep: TLabel;
     LblStepZ: TLabel;
     procedure JogClick(Sender: TObject);
+    procedure DiagonalJogClick(Sender: TObject);
     procedure HomeClick(Sender: TObject);
     procedure UnlockClick(Sender: TObject);
     procedure HoldClick(Sender: TObject);
@@ -168,6 +173,28 @@ begin
   else if Sender = BtnYPlus then dir := Format('Y%g', [step])
   else if Sender = BtnZMinus then dir := Format('Z-%g', [step])
   else if Sender = BtnZPlus then dir := Format('Z%g', [step])
+  else Exit;
+  FSender.Jog(dir);
+end;
+
+procedure TJogFrame.DiagonalJogClick(Sender: TObject);
+var
+  dir: string;
+  step: Double;
+begin
+  // Plan Phase 17 (jog panel parity check against LaserGRBL's real
+  // JogForm.cs, which has a full 8-direction pad, N/S/E/W plus
+  // NE/SE/SW/NW): this app only had the 4 cardinal directions. GRBL's
+  // $J= jog command (already used by TGRBL1Controller.Jog, see
+  // ugrbl1.pas) accepts multiple axis words on one line, so a diagonal
+  // is just X and Y combined in a single jog command - no protocol
+  // changes needed, reuses the same StepValue as the X/Y buttons.
+  if FSender = nil then Exit;
+  step := StepValue;
+  if Sender = BtnNW then dir := Format('X-%gY%g', [step, step])
+  else if Sender = BtnNE then dir := Format('X%gY%g', [step, step])
+  else if Sender = BtnSW then dir := Format('X-%gY-%g', [step, step])
+  else if Sender = BtnSE then dir := Format('X%gY-%g', [step, step])
   else Exit;
   FSender.Jog(dir);
 end;

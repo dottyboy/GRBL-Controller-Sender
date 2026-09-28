@@ -168,6 +168,50 @@ object JogFrame: TJogFrame
     TabOrder = 11
     OnClick = ResetClick
   end
+  object BtnNW: TButton
+    Left = 6
+    Height = 30
+    Top = 8
+    Width = 30
+    Caption = #8598
+    Font.Height = -15
+    ParentFont = False
+    TabOrder = 13
+    OnClick = DiagonalJogClick
+  end
+  object BtnNE: TButton
+    Left = 92
+    Height = 30
+    Top = 8
+    Width = 30
+    Caption = #8599
+    Font.Height = -15
+    ParentFont = False
+    TabOrder = 14
+    OnClick = DiagonalJogClick
+  end
+  object BtnSW: TButton
+    Left = 6
+    Height = 30
+    Top = 66
+    Width = 30
+    Caption = #8601
+    Font.Height = -15
+    ParentFont = False
+    TabOrder = 15
+    OnClick = DiagonalJogClick
+  end
+  object BtnSE: TButton
+    Left = 92
+    Height = 30
+    Top = 66
+    Width = 30
+    Caption = #8600
+    Font.Height = -15
+    ParentFont = False
+    TabOrder = 16
+    OnClick = DiagonalJogClick
+  end
   object CboStepZ: TComboBox
     Left = 162
     Height = 26

@@ -8,6 +8,9 @@ settings grid, a firmware builder (grblHAL/µCNC dual-drive axis
 config + PlatformIO build/flash), FluidNC `config.yaml` editing, and an
 in-progress laser-engraving module.
 
+See [`docs/USER-GUIDE.md`](docs/USER-GUIDE.md) for a short tab-by-tab
+guide to what actually works today.
+
 ## ⚠️ Status: test project, provided as-is, no warranty
 
 This is a personal/hobby project published publicly so others can look

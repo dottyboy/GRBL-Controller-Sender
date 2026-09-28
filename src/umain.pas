@@ -9,7 +9,7 @@ uses
   usender, uappconfig, ugcode, uconnectframe, udroframe, ujogframe,
   uterminalframe, ueditorframe, usettingsform, uopengl3dframe,
   uprobeframe, utoolsframe, usettingsgridframe, ufluidncframe,
-  ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols;
+  ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys;
 
 type
 
@@ -27,12 +27,14 @@ type
     MenuLangDE: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure MenuFileExitClick(Sender: TObject);
     procedure MenuToolsSettingsClick(Sender: TObject);
     procedure MenuLangClick(Sender: TObject);
   private
     FSender: TSender;
     FAppConfig: TAppConfig;
+    FHotkeyMap: THotkeyMap;
     FGCodeParser: TGCodeParser;
     Pages: TPageControl;
     TabControl: TTabSheet;
@@ -87,6 +89,12 @@ begin
   FAppConfig := TAppConfig.Create;
   FAppConfig.Load(FSender.State);
   FGCodeParser := TGCodeParser.Create;
+
+  // Plan Phase 15 (scoped down this session - defaults only, no rebind
+  // UI yet): loads a saved hotkeys.ini if one exists, else the built-in
+  // defaults (LoadDefaults runs first inside Load either way).
+  FHotkeyMap := THotkeyMap.Create;
+  FHotkeyMap.Load(IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'hotkeys.ini');
 
   Pages := TPageControl.Create(Self);
   Pages.Parent := Self;
@@ -216,8 +224,52 @@ begin
   CaptureConnectionDefaults;
   FAppConfig.Save(FSender.State);
   FAppConfig.Free;
+  FHotkeyMap.Save(IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'hotkeys.ini');
+  FHotkeyMap.Free;
   FGCodeParser.Free;
   FSender.Free;
+end;
+
+procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+var
+  hkAction: THotkeyAction;
+  stepXY, stepZ: Double;
+begin
+  hkAction := FHotkeyMap.Find(Key, ssShift in Shift, ssCtrl in Shift, ssAlt in Shift);
+  if hkAction = haNone then Exit;
+  if FSender = nil then Exit;
+
+  stepXY := StrToFloatDef(JogFrame.CboStep.Text, 1.0);
+  stepZ := StrToFloatDef(JogFrame.CboStepZ.Text, 1.0);
+
+  // Mirrors ujogframe.pas's own click handlers exactly (including not
+  // guarding on FSender.Connected - jog/control buttons already queue
+  // harmlessly while disconnected, so a hotkey does the same, not more).
+  case hkAction of
+    haJogXPlus:  FSender.Jog(Format('X%g', [stepXY]));
+    haJogXMinus: FSender.Jog(Format('X-%g', [stepXY]));
+    haJogYPlus:  FSender.Jog(Format('Y%g', [stepXY]));
+    haJogYMinus: FSender.Jog(Format('Y-%g', [stepXY]));
+    haJogZPlus:  FSender.Jog(Format('Z%g', [stepZ]));
+    haJogZMinus: FSender.Jog(Format('Z-%g', [stepZ]));
+    haJogNE:     FSender.Jog(Format('X%gY%g', [stepXY, stepXY]));
+    haJogNW:     FSender.Jog(Format('X-%gY%g', [stepXY, stepXY]));
+    haJogSE:     FSender.Jog(Format('X%gY-%g', [stepXY, stepXY]));
+    haJogSW:     FSender.Jog(Format('X-%gY-%g', [stepXY, stepXY]));
+    haJogStepIncrease:
+      if JogFrame.CboStep.ItemIndex < JogFrame.CboStep.Items.Count - 1 then
+        JogFrame.CboStep.ItemIndex := JogFrame.CboStep.ItemIndex + 1;
+    haJogStepDecrease:
+      if JogFrame.CboStep.ItemIndex > 0 then
+        JogFrame.CboStep.ItemIndex := JogFrame.CboStep.ItemIndex - 1;
+    haHome:      FSender.Home;
+    haUnlock:    FSender.Unlock;
+    haFeedHold:  FSender.FeedHold;
+    haResume:    FSender.Resume;
+    haSoftReset: FSender.SoftReset;
+  end;
+
+  Key := 0; // handled - don't also deliver it to whatever control has focus
 end;
 
 procedure TForm1.View3DRequestParse(Sender: TObject);

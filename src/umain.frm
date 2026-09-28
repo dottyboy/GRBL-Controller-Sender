@@ -7,8 +7,10 @@ object Form1: TForm1
   ClientHeight = 600
   ClientWidth = 900
   Position = poScreenCenter
+  KeyPreview = True
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  OnKeyDown = FormKeyDown
   LCLVersion = '4.8.0.0'
   Menu = MainMenu1
   object MainMenu1: TMainMenu

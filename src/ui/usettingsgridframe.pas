@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Math, Forms, Controls, StdCtrls, ExtCtrls, Grids,
-  usender, usettingsmeta, ui18n;
+  usender, usettingsmeta, ui18n, usettinghelp;
 
 const
   COL_ID = 0;
@@ -85,6 +85,7 @@ var
   i, id: Integer;
   meta: TSettingMeta;
   descCount: Integer;
+  fallbackDesc: string;
 begin
   if FSender = nil then Exit;
   FShadow.Assign(FSender.State.Settings);
@@ -106,6 +107,21 @@ begin
     begin
       Grid.Cells[COL_DESC, i + 1] := meta.Name + ' - ' + DescribeSettingMeta(meta);
       Inc(descCount);
+    end
+    else if id >= 0 then
+    begin
+      // Phase 18: no $ES metadata (grblHAL only) for this board/setting -
+      // fall back to the baked-in grbl 1.1 description table
+      // (usettinghelp.pas) so standard settings still show something
+      // human-readable on vanilla grbl 1.1 / Ortur / Longer / etc boards.
+      fallbackDesc := SettingDescription(id);
+      if fallbackDesc <> '' then
+      begin
+        Grid.Cells[COL_DESC, i + 1] := SettingName(id) + ' - ' + fallbackDesc;
+        Inc(descCount);
+      end
+      else
+        Grid.Cells[COL_DESC, i + 1] := '';
     end
     else
       Grid.Cells[COL_DESC, i + 1] := '';
