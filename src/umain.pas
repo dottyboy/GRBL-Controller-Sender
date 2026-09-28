@@ -11,7 +11,8 @@ uses
   uprobeframe, utoolsframe, usettingsgridframe, ufluidncframe,
   ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
-  umaterialpresetframe, ucustombuttonframe, urasterimportframe;
+  umaterialpresetframe, ucustombuttonframe, urasterimportframe,
+  usvgimportframe;
 
 type
 
@@ -49,6 +50,7 @@ type
     TabFirmwareBuilder: TTabSheet;
     TabSpoilboard: TTabSheet;
     TabRasterImport: TTabSheet;
+    TabSvgImport: TTabSheet;
     TabLaserControl: TTabSheet;
     TabMaterials: TTabSheet;
     TabMacros: TTabSheet;
@@ -66,6 +68,7 @@ type
     FirmwareBuilderFrame: TFirmwareBuilderFrame;
     SpoilboardFrame: TSpoilboardFrame;
     RasterImportFrame: TRasterImportFrame;
+    SvgImportFrame: TSvgImportFrame;
     LaserControlFrame: TLaserControlFrame;
     MaterialPresetFrame: TMaterialPresetFrame;
     CustomButtonFrame: TCustomButtonFrame;
@@ -91,6 +94,7 @@ type
     procedure View3DRequestParse(Sender: TObject);
     procedure SpoilboardGenerated(const AProgramText: string);
     procedure RasterGenerated(const AProgramText: string);
+    procedure SvgGenerated(const AProgramText: string);
   public
 
   end;
@@ -155,6 +159,9 @@ begin
   TabRasterImport := Pages.AddTabSheet;
   TabRasterImport.Caption := 'Raster Import';
 
+  TabSvgImport := Pages.AddTabSheet;
+  TabSvgImport.Caption := 'SVG / Vectorize';
+
   TabLaserControl := Pages.AddTabSheet;
   TabLaserControl.Caption := 'Laser Control';
   TabLaserControl.TabVisible := False; // shown only once BoardInfo.SupportLaserMode is known True
@@ -216,6 +223,10 @@ begin
   RasterImportFrame := TRasterImportFrame.Create(TabRasterImport);
   RasterImportFrame.Parent := TabRasterImport;
   RasterImportFrame.OnGenerated := @RasterGenerated;
+
+  SvgImportFrame := TSvgImportFrame.Create(TabSvgImport);
+  SvgImportFrame.Parent := TabSvgImport;
+  SvgImportFrame.OnGenerated := @SvgGenerated;
   // SetSender is used only by "Send Travel Limits" ($130/$131/$132) -
   // generating/loading g-code never touches the sender.
   SpoilboardFrame.SetSender(FSender);
@@ -257,8 +268,8 @@ begin
   end;
   TranslateControls(Self);
   TranslateMenu(MainMenu1.Items);
-end;
 
+end;
 procedure TForm1.ApplyConnectionDefaults;
 begin
   if FAppConfig.LastPort <> '' then
@@ -350,6 +361,13 @@ begin
 end;
 
 procedure TForm1.RasterGenerated(const AProgramText: string);
+begin
+  EditorFrame.LoadGeneratedText(AProgramText);
+  View3DRequestParse(Self);
+  Pages.ActivePage := TabView3D;
+end;
+
+procedure TForm1.SvgGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
