@@ -79,6 +79,17 @@ addition to this project's own license (see `LICENSE`, GPL-3.0-or-later).**
   to port LaserGRBL algorithms more closely in places (e.g. a Potrace-
   based vectorizer, an SVG import path, a Hershey-font engraver) —
   this notice will be kept up to date as that happens.
+- Phase 16 (test-pattern generator) ported LaserGRBL algorithms more
+  literally than the rest of this notice's entries: `src/core/uhershey.pas`
+  is a line-for-line translation of `Hershey/Hershey.cs`'s real
+  `CreateString`/`MeasureString`/`ApplyOffset` (the `hor` horizontal-text
+  glyph table itself — 95 glyphs, ASCII 32-126 — is machine-extracted
+  verbatim into `src/core/hershey_data.inc`; the `ver` vertical-text table
+  was deliberately not ported, see that unit's own header comment), and
+  `src/core/ulasertestgen.pas` closely follows `GrblFile.cs`'s real
+  `GenerateCuttingTest`, `GenerateGreyscaleTest`, `GenerateShakeTest` and
+  `GenerateShakeTest2` (same coordinate math and g-code shape, adapted to
+  this project's own `TStrings`-based generator style).
 
 ## grblHAL (GPL-3.0-or-later)
 

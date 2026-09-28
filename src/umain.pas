@@ -12,7 +12,7 @@ uses
   ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
   umaterialpresetframe, ucustombuttonframe, urasterimportframe,
-  usvgimportframe, uhotkeysframe;
+  usvgimportframe, uhotkeysframe, ulasertestgenframe;
 
 type
 
@@ -51,6 +51,7 @@ type
     TabSpoilboard: TTabSheet;
     TabRasterImport: TTabSheet;
     TabSvgImport: TTabSheet;
+    TabLaserTestGen: TTabSheet;
     TabLaserControl: TTabSheet;
     TabMaterials: TTabSheet;
     TabMacros: TTabSheet;
@@ -70,6 +71,7 @@ type
     SpoilboardFrame: TSpoilboardFrame;
     RasterImportFrame: TRasterImportFrame;
     SvgImportFrame: TSvgImportFrame;
+    LaserTestGenFrame: TLaserTestGenFrame;
     LaserControlFrame: TLaserControlFrame;
     MaterialPresetFrame: TMaterialPresetFrame;
     CustomButtonFrame: TCustomButtonFrame;
@@ -97,6 +99,7 @@ type
     procedure SpoilboardGenerated(const AProgramText: string);
     procedure RasterGenerated(const AProgramText: string);
     procedure SvgGenerated(const AProgramText: string);
+    procedure LaserTestGenGenerated(const AProgramText: string);
   public
 
   end;
@@ -163,6 +166,9 @@ begin
 
   TabSvgImport := Pages.AddTabSheet;
   TabSvgImport.Caption := 'SVG / Vectorize';
+
+  TabLaserTestGen := Pages.AddTabSheet;
+  TabLaserTestGen.Caption := 'Laser Test Patterns';
 
   TabLaserControl := Pages.AddTabSheet;
   TabLaserControl.Caption := 'Laser Control';
@@ -232,6 +238,10 @@ begin
   SvgImportFrame := TSvgImportFrame.Create(TabSvgImport);
   SvgImportFrame.Parent := TabSvgImport;
   SvgImportFrame.OnGenerated := @SvgGenerated;
+
+  LaserTestGenFrame := TLaserTestGenFrame.Create(TabLaserTestGen);
+  LaserTestGenFrame.Parent := TabLaserTestGen;
+  LaserTestGenFrame.OnGenerated := @LaserTestGenGenerated;
   // SetSender is used only by "Send Travel Limits" ($130/$131/$132) -
   // generating/loading g-code never touches the sender.
   SpoilboardFrame.SetSender(FSender);
@@ -388,6 +398,13 @@ begin
 end;
 
 procedure TForm1.SvgGenerated(const AProgramText: string);
+begin
+  EditorFrame.LoadGeneratedText(AProgramText);
+  View3DRequestParse(Self);
+  Pages.ActivePage := TabView3D;
+end;
+
+procedure TForm1.LaserTestGenGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
