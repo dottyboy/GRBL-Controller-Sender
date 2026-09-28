@@ -203,6 +203,7 @@ type
     procedure EnqueueLines(ALines: TStrings);
     procedure EnqueueWait;
     procedure Jog(const ADirection: string);
+    procedure JogCancel;
     procedure Home;
     procedure Unlock;
     procedure FeedHold;
@@ -687,6 +688,11 @@ end;
 procedure TSender.Jog(const ADirection: string);
 begin
   FController.Jog(ADirection);
+end;
+
+procedure TSender.JogCancel;
+begin
+  FController.JogCancel;
 end;
 
 procedure TSender.Home;

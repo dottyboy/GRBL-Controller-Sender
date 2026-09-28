@@ -12,7 +12,7 @@ uses
   ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
   umaterialpresetframe, ucustombuttonframe, urasterimportframe,
-  usvgimportframe;
+  usvgimportframe, uhotkeysframe;
 
 type
 
@@ -54,6 +54,7 @@ type
     TabLaserControl: TTabSheet;
     TabMaterials: TTabSheet;
     TabMacros: TTabSheet;
+    TabHotkeys: TTabSheet;
     TabTerminal: TTabSheet;
     ConnectFrame: TConnectFrame;
     DROFrame: TDROFrame;
@@ -72,6 +73,7 @@ type
     LaserControlFrame: TLaserControlFrame;
     MaterialPresetFrame: TMaterialPresetFrame;
     CustomButtonFrame: TCustomButtonFrame;
+    HotkeysFrame: THotkeysFrame;
     FLastFirmwareName: string; // tracks BoardInfo.FirmwareName so TabFluidNC
                                 // is only rebuilt/toggled on an actual change
     // Plan Phase 9: tracks BoardInfo.SupportLaserMode so TabLaserControl is
@@ -172,6 +174,9 @@ begin
   TabMacros := Pages.AddTabSheet;
   TabMacros.Caption := 'Macros';
 
+  TabHotkeys := Pages.AddTabSheet;
+  TabHotkeys.Caption := 'Hotkeys';
+
   TabTerminal := Pages.AddTabSheet;
   TabTerminal.Caption := 'Terminal';
 
@@ -244,6 +249,10 @@ begin
   CustomButtonFrame := TCustomButtonFrame.Create(TabMacros);
   CustomButtonFrame.Parent := TabMacros;
 
+  HotkeysFrame := THotkeysFrame.Create(TabHotkeys);
+  HotkeysFrame.Parent := TabHotkeys;
+  HotkeysFrame.SetHotkeyMap(FHotkeyMap);
+
   LaserControlFrame.OnEditMacros := @EditMacrosRequested;
   Pages.OnChange := @PagesChange;
 
@@ -303,6 +312,17 @@ var
   hkAction: THotkeyAction;
   stepXY, stepZ: Double;
 begin
+  // Plan Phase 15: while the Hotkeys tab is waiting for a new key (after
+  // "Rebind Selected"), the NEXT keydown anywhere in the app is the new
+  // binding, not a normal hotkey trigger - checked first, before the
+  // regular dispatch below, and consumes the key either way.
+  if HotkeysFrame.IsCapturing then
+  begin
+    HotkeysFrame.CaptureKeyPress(Key, ssShift in Shift, ssCtrl in Shift, ssAlt in Shift);
+    Key := 0;
+    Exit;
+  end;
+
   hkAction := FHotkeyMap.Find(Key, ssShift in Shift, ssCtrl in Shift, ssAlt in Shift);
   if hkAction = haNone then Exit;
   if FSender = nil then Exit;

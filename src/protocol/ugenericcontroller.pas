@@ -87,6 +87,13 @@ type
 
     // Commands (_GenericController.py)
     procedure Jog(const ADirection: string); virtual;
+    // Plan Phase 17: cancels an in-progress $J= jog (real-time byte,
+    // GRBL1-only - see ugrbl1.pas's JOG_CANCEL). No-op by default since
+    // the older controllers this app also supports (GRBL0/Smoothie/
+    // G2Core) don't have an equivalent real-time cancel for their own
+    // G91/G0/G90-style Jog() - releasing a held jog button there simply
+    // lets that already-queued, bounded move finish normally.
+    procedure JogCancel; virtual;
     procedure GotoXYZ(HasX, HasY, HasZ: Boolean; X, Y, Z: Double); virtual;
     procedure FeedHold; virtual;
     procedure Resume; virtual;
@@ -207,6 +214,11 @@ begin
   // _GenericController.py jog(): G91 G0<dir> then back to G90
   FHost.SendGCode('G91G0' + ADirection);
   FHost.SendGCode('G90');
+end;
+
+procedure TGenericController.JogCancel;
+begin
+  // no-op by default; GRBL1 overrides this (see ugrbl1.pas)
 end;
 
 procedure TGenericController.GotoXYZ(HasX, HasY, HasZ: Boolean; X, Y, Z: Double);

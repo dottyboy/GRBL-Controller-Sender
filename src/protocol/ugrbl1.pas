@@ -22,6 +22,13 @@ const
   OV_SPINDLE_DEC10 = #$9B;
   OV_SPINDLE_INC1  = #$9C;
   OV_SPINDLE_DEC1  = #$9D;
+  // Plan Phase 17: real-time jog-cancel byte, confirmed from LaserGRBL's
+  // own source (Core/GrblCore.cs: `SendImmediate(0x85); // abort previous
+  // jog command`) - part of grbl 1.1's real $J= jogging protocol, not
+  // available/meaningful on the older controllers this app also supports
+  // (GRBL0/Smoothie/G2Core), which is why this lives here, not on the
+  // generic base controller.
+  JOG_CANCEL = #$85;
 
 type
   { TGRBL1Controller ports controllers/GRBL1.py: pipe-delimited status
@@ -30,6 +37,7 @@ type
   public
     constructor Create(AHost: IControllerHost);
     procedure Jog(const ADirection: string); override;
+    procedure JogCancel; override;
     procedure OverrideSet; override;
     procedure ParseBracketAngle(const ALine: string; ACLine: TLineFifo); override;
     procedure ParseBracketSquare(const ALine: string); override;
@@ -70,6 +78,11 @@ procedure TGRBL1Controller.Jog(const ADirection: string);
 begin
   // GRBL1.py jog(): uses $J= realtime jog command instead of G91/G0/G90
   FHost.SendGCode('$J=G91 ' + ADirection + ' F100000');
+end;
+
+procedure TGRBL1Controller.JogCancel;
+begin
+  FHost.SerialWriteRaw(JOG_CANCEL);
 end;
 
 procedure TGRBL1Controller.OverrideSet;
