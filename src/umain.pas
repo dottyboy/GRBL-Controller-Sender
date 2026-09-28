@@ -277,8 +277,8 @@ begin
   end;
   TranslateControls(Self);
   TranslateMenu(MainMenu1.Items);
-
 end;
+
 procedure TForm1.ApplyConnectionDefaults;
 begin
   if FAppConfig.LastPort <> '' then

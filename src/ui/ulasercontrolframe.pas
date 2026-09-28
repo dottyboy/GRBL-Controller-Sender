@@ -18,8 +18,8 @@ interface
 uses
   Classes, SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls,
   Spin, ulasercommand, ulasersender, usender, uappconfig,
-  usafetycountdownform, umaterialpreset, ucustombutton, ucustombuttonstore,
-  ui18n;
+  usafetycountdownform, uchecklist, uchecklistform, umaterialpreset,
+  ucustombutton, ucustombuttonstore, ui18n;
 
 type
 
@@ -80,6 +80,7 @@ type
     // existing pattern of building controls at runtime (umain.pas's
     // Pages.AddTabSheet calls), just one level lower (buttons, not tabs).
     FButtonStore: TCustomButtonStore;
+    FChecklist: TChecklist;
     FButtons: TCustomButtonArray;
     FOnEditMacros: TNotifyEvent;
     procedure MacroButtonClick(Sender: TObject);
@@ -143,10 +144,16 @@ begin
   FButtonStore := TCustomButtonStore.Create(
     IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'custombuttons.ini');
   RefreshMacroButtons;
+
+  FChecklist := TChecklist.Create(
+    IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'checklist.ini');
+  FChecklist.Load;
+  FChecklist.SeedDefaultsIfEmpty;
 end;
 
 destructor TLaserControlFrame.Destroy;
 begin
+  FChecklist.Free;
   FButtonStore.Free;
   FProgram.Free;
   inherited Destroy;
@@ -209,6 +216,16 @@ begin
   FProgram.LoadFromLines(FEditorLines);
   FProgram.Header.Assign(MemoHeader.Lines);
   FProgram.Footer.Assign(MemoFooter.Lines);
+
+  // Plan Phase 25: pre-flight checklist, shown BEFORE the Phase 6 safety
+  // countdown (confirm the physical setup first, then the final
+  // countdown) - alongside it, not replacing it. An empty list never
+  // blocks Start (TChecklistForm.Execute's own contract).
+  if not TChecklistForm.Execute(FChecklist) then
+  begin
+    SetStatus(T('Cancelled'), True);
+    Exit;
+  end;
 
   if Assigned(FAppConfig) then
   begin
