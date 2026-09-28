@@ -16,9 +16,9 @@ unit ulasercontrolframe;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls,
+  Classes, SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls,
   Spin, ulasercommand, ulasersender, usender, uappconfig,
-  usafetycountdownform, ui18n;
+  usafetycountdownform, umaterialpreset, ui18n;
 
 type
 
@@ -83,6 +83,16 @@ type
     // pattern DROFrame/ConnectFrame already use) - updates the progress
     // label and Start/Pause/Abort enabled state from TSender.LaserJobProgress.
     procedure RefreshState;
+    // Plan Phase 13: applies a saved material preset's Power/Speed/Passes.
+    // Sets Passes directly (safe, direct match) and the Test Fire power
+    // field (so a quick power check uses the right value), and records
+    // Power/Speed as an inert g-code COMMENT in the header - deliberately
+    // NOT an active M3/F line, which would arm the laser motionless at the
+    // job's start position the instant Start is clicked, before any move -
+    // a real safety concern this project takes seriously elsewhere (Phase
+    // 2's M5-on-abort guarantee, Phase 6's countdown). The user still sets
+    // the real M3 S/F words in their own g-code body, same as always.
+    procedure ApplyMaterialPreset(const APreset: TMaterialPreset);
   end;
 
 implementation
@@ -304,6 +314,28 @@ begin
     FIsPaused := False;
     BtnPauseResume.Caption := T('Pause');
   end;
+end;
+
+procedure TLaserControlFrame.ApplyMaterialPreset(const APreset: TMaterialPreset);
+var
+  i: Integer;
+  commentLine: string;
+begin
+  if APreset.Passes > 0 then
+    SpinPasses.Value := APreset.Passes;
+  EdTestFirePower.Value := EnsureRange(Round(APreset.Power), EdTestFirePower.MinValue, EdTestFirePower.MaxValue);
+
+  commentLine := Format('(Material: %s - Power S%g Speed F%g)',
+    [APreset.Material, APreset.Power, APreset.Speed]);
+  // Replace a prior preset-comment line if one is already there, so
+  // re-applying a different preset doesn't pile up stale comments.
+  for i := 0 to MemoHeader.Lines.Count - 1 do
+    if Pos('(Material:', MemoHeader.Lines[i]) = 1 then
+    begin
+      MemoHeader.Lines[i] := commentLine;
+      Exit;
+    end;
+  MemoHeader.Lines.Insert(0, commentLine);
 end;
 
 end.

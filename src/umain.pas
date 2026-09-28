@@ -10,7 +10,8 @@ uses
   uterminalframe, ueditorframe, usettingsform, uopengl3dframe,
   uprobeframe, utoolsframe, usettingsgridframe, ufluidncframe,
   ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
-  ustatebuilder, uresumejobform, ulasercontrolframe;
+  ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
+  umaterialpresetframe;
 
 type
 
@@ -48,6 +49,7 @@ type
     TabFirmwareBuilder: TTabSheet;
     TabSpoilboard: TTabSheet;
     TabLaserControl: TTabSheet;
+    TabMaterials: TTabSheet;
     TabTerminal: TTabSheet;
     ConnectFrame: TConnectFrame;
     DROFrame: TDROFrame;
@@ -62,6 +64,7 @@ type
     FirmwareBuilderFrame: TFirmwareBuilderFrame;
     SpoilboardFrame: TSpoilboardFrame;
     LaserControlFrame: TLaserControlFrame;
+    MaterialPresetFrame: TMaterialPresetFrame;
     FLastFirmwareName: string; // tracks BoardInfo.FirmwareName so TabFluidNC
                                 // is only rebuilt/toggled on an actual change
     // Plan Phase 9: tracks BoardInfo.SupportLaserMode so TabLaserControl is
@@ -76,6 +79,7 @@ type
     procedure SenderLog(Sender: TObject; const ALine: string; IsError: Boolean);
     procedure SenderStateChanged(Sender: TObject);
     procedure OfferLaserResume;
+    procedure MaterialPresetApply(const APreset: TMaterialPreset);
     procedure ApplyConnectionDefaults;
     procedure CaptureConnectionDefaults;
     procedure View3DRequestParse(Sender: TObject);
@@ -145,6 +149,9 @@ begin
   TabLaserControl.Caption := 'Laser Control';
   TabLaserControl.TabVisible := False; // shown only once BoardInfo.SupportLaserMode is known True
 
+  TabMaterials := Pages.AddTabSheet;
+  TabMaterials.Caption := 'Materials';
+
   TabTerminal := Pages.AddTabSheet;
   TabTerminal.Caption := 'Terminal';
 
@@ -201,6 +208,10 @@ begin
   LaserControlFrame.SetSender(FSender);
   LaserControlFrame.SetAppConfig(FAppConfig);
   LaserControlFrame.SetEditorLines(EditorFrame.SynEditor.Lines);
+
+  MaterialPresetFrame := TMaterialPresetFrame.Create(TabMaterials);
+  MaterialPresetFrame.Parent := TabMaterials;
+  MaterialPresetFrame.OnApply := @MaterialPresetApply;
 
   TerminalFrame := TTerminalFrame.Create(TabTerminal);
   TerminalFrame.Parent := TabTerminal;
@@ -313,6 +324,17 @@ begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
   Pages.ActivePage := TabView3D;
+end;
+
+procedure TForm1.MaterialPresetApply(const APreset: TMaterialPreset);
+begin
+  // Not gated on TabLaserControl.TabVisible (whether SupportLaserMode is
+  // known True yet) - ApplyMaterialPreset only touches the frame's own
+  // fields (Passes/Test-Fire-power/header comment), all safe to set on a
+  // hidden tab the same as any other frame field, and it's exactly what a
+  // user preparing a job before ever connecting would want to happen.
+  LaserControlFrame.ApplyMaterialPreset(APreset);
+  Pages.ActivePage := TabLaserControl;
 end;
 
 procedure TForm1.MenuFileExitClick(Sender: TObject);

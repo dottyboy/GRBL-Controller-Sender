@@ -52,6 +52,9 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="pl_BGRAbitmap"/>
+      </Item>
+      <Item>
         <PackageName Value="lz_OpenGL"/>
       </Item>
       <Item>

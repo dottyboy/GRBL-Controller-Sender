@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..216] of array[0..2] of string = (
+  Catalog: array[0..220] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -216,5 +216,9 @@ const
     ('Test Fire', 'Testni impuls', 'Testimpuls'),
     ('Power', 'Snaga', 'Leistung'),
     ('Start', 'Pokreni', 'Start'),
-    ('Abort', 'Prekini', 'Abbrechen')
+    ('Abort', 'Prekini', 'Abbrechen'),
+    ('Materials', 'Materijali', 'Materialien'),
+    ('Example (edit me)', 'Primjer (uredi me)', 'Beispiel (bearbeiten)'),
+    ('Add Material', 'Dodaj materijal', 'Material hinzufügen'),
+    ('Apply to Laser Control', 'Primijeni na upravljanje laserom', 'Auf Lasersteuerung anwenden')
   );
