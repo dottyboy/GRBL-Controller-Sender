@@ -11,11 +11,18 @@ type
   { TSegment: one drawable move, in mm, already in the machine's XY(Z)
     coordinate frame. Rapid=True for G0 (typically drawn dashed/dim),
     False for feed moves G1/G2/G3. Arcs (G2/G3) are pre-expanded into a
-    short run of these, mirroring bCNC's CNC.py motionPath(). }
+    short run of these, mirroring bCNC's CNC.py motionPath(). Power/LaserOn
+    (plan Phase 11) capture the MODAL spindle/laser state (M3/M4 + S) at
+    the moment this segment was generated - LaserOn is always False on a
+    Rapid segment regardless of the modal M3/M4 state, matching real
+    grbl/grblHAL laser-mode ($32=1) behavior: the laser is automatically
+    disabled during G0 rapids even if M3/M4 is nominally still active. }
   TSegment = record
     X1, Y1, Z1: Double;
     X2, Y2, Z2: Double;
     Rapid: Boolean;
+    Power: Double;
+    LaserOn: Boolean;
   end;
 
   TSegmentArray = array of TSegment;
@@ -44,6 +51,9 @@ type
     FAbsolute: Boolean;
     FUnitScale: Double;           // 1.0 = mm, 25.4 = inch -> mm
     FGCode: Integer;              // modal motion mode: 0,1,2,3, or -1 = none
+    FLaserOn: Boolean;            // modal spindle/laser state: M3/M4 = True, M5 = False
+    FPower: Double;               // modal S word (laser power/spindle speed)
+    FMaxPower: Double;            // highest Power seen on any non-rapid, laser-on segment
     FSegments: TSegmentArray;
     FCount: Integer;
     FMinX, FMinY, FMinZ, FMaxX, FMaxY, FMaxZ: Double;
@@ -64,6 +74,7 @@ type
     property MaxX: Double read FMaxX;
     property MaxY: Double read FMaxY;
     property MaxZ: Double read FMaxZ;
+    property MaxPower: Double read FMaxPower;
   end;
 
 // Tokenize one g-code line: strip () and ; comments, split into words
@@ -137,6 +148,9 @@ begin
   FAbsolute := True;
   FUnitScale := 1.0;
   FGCode := -1;
+  FLaserOn := False;
+  FPower := 0;
+  FMaxPower := 0;
   FCount := 0;
   SetLength(FSegments, 0);
   FMinX := 1.0e30; FMinY := 1.0e30; FMinZ := 1.0e30;
@@ -160,6 +174,13 @@ begin
   FSegments[FCount].X1 := x1; FSegments[FCount].Y1 := y1; FSegments[FCount].Z1 := z1;
   FSegments[FCount].X2 := x2; FSegments[FCount].Y2 := y2; FSegments[FCount].Z2 := z2;
   FSegments[FCount].Rapid := Rapid;
+  FSegments[FCount].Power := FPower;
+  // See TSegment's own doc comment: a Rapid segment is never LaserOn,
+  // regardless of the modal M3/M4 state, matching real grbl laser-mode
+  // behavior (the laser is auto-disabled during G0).
+  FSegments[FCount].LaserOn := FLaserOn and not Rapid;
+  if FSegments[FCount].LaserOn and (FPower > FMaxPower) then
+    FMaxPower := FPower;
   Inc(FCount);
   UpdateBounds(x1, y1, z1);
   UpdateBounds(x2, y2, z2);
@@ -283,7 +304,7 @@ var
   tok: string;
   c: Char;
   value: Double;
-  gcode, decimal: Integer;
+  gcode, decimal, mcode: Integer;
 begin
   tokens := TokenizeGCodeLine(ALine);
   if Length(tokens) = 0 then Exit;
@@ -321,6 +342,15 @@ begin
             80: FGCode := -1;
           end;
         end;
+      'M':
+        begin
+          mcode := Trunc(value);
+          case mcode of
+            3, 4: FLaserOn := True;
+            5: FLaserOn := False;
+          end;
+        end;
+      'S': FPower := value;
     end;
   end;
 

@@ -5,7 +5,7 @@ unit uopengl3dframe;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Graphics,
+  Classes, SysUtils, Math, Forms, Controls, StdCtrls, ExtCtrls, Graphics,
   OpenGLContext, GL, GLU,
   ugcode;
 
@@ -35,6 +35,13 @@ type
   private
     FSegments: TSegmentArray;
     FSegCount: Integer;
+    // Plan Phase 11: highest Power among all LaserOn segments (from
+    // TGCodeParser.MaxPower), used to normalize the power-gradient color in
+    // DrawToolpath - the real $30 max-S setting isn't known at parse time,
+    // so relative-to-this-program's-own-max is the honest choice rather
+    // than guessing a fixed S range (grbl programs commonly use S0-255 or
+    // S0-1000 depending on the board/config).
+    FMaxPower: Double;
     FCenterX, FCenterY, FCenterZ: Double;
     FExtent: Double; // half-diagonal of bounding box, for camera framing
     FRotX, FRotZ: Single;   // orbit angles (degrees)
@@ -48,7 +55,7 @@ type
   public
     procedure ResetView;
     procedure SetSegments(const ASegments: TSegmentArray; ACount: Integer;
-      AMinX, AMinY, AMinZ, AMaxX, AMaxY, AMaxZ: Double);
+      AMinX, AMinY, AMinZ, AMaxX, AMaxY, AMaxZ, AMaxPower: Double);
     property OnRequestParse: TNotifyEvent read FOnRequestParse write FOnRequestParse;
   end;
 
@@ -70,12 +77,13 @@ begin
 end;
 
 procedure TOpenGL3DFrame.SetSegments(const ASegments: TSegmentArray;
-  ACount: Integer; AMinX, AMinY, AMinZ, AMaxX, AMaxY, AMaxZ: Double);
+  ACount: Integer; AMinX, AMinY, AMinZ, AMaxX, AMaxY, AMaxZ, AMaxPower: Double);
 var
   dx, dy, dz: Double;
 begin
   FSegments := ASegments;
   FSegCount := ACount;
+  FMaxPower := AMaxPower;
 
   if ACount = 0 then
   begin
@@ -180,14 +188,31 @@ end;
 procedure TOpenGL3DFrame.DrawToolpath;
 var
   i: Integer;
+  t, r, g, b: Single;
 begin
   glBegin(GL_LINES);
   for i := 0 to FSegCount - 1 do
   begin
     if FSegments[i].Rapid then
-      glColor3f(0.55, 0.55, 0.55)
+      glColor3f(0.55, 0.55, 0.55)          // rapid travel, laser guaranteed off
+    else if not FSegments[i].LaserOn then
+      glColor3f(0.45, 0.40, 0.20)          // feed move with the laser off (e.g. after M5)
     else
-      glColor3f(0.15, 0.85, 0.25);
+    begin
+      // Power-gradient: low power = dim red, high power = bright yellow -
+      // the common "laser power heat" direction (also LaserGRBL's own
+      // convention), normalized against this program's own highest S
+      // value (FMaxPower) since the real $30 max-S setting isn't known
+      // here - see FMaxPower's own doc comment.
+      if FMaxPower > 0 then
+        t := EnsureRange(FSegments[i].Power / FMaxPower, 0.0, 1.0)
+      else
+        t := 1.0; // no S word ever seen on a laser-on move - show full power rather than invisible
+      r := 0.35 + 0.65 * t;
+      g := 0.05 + 0.85 * t;
+      b := 0.05 + 0.15 * t;
+      glColor3f(r, g, b);
+    end;
     glVertex3f(FSegments[i].X1, FSegments[i].Y1, FSegments[i].Z1);
     glVertex3f(FSegments[i].X2, FSegments[i].Y2, FSegments[i].Z2);
   end;

@@ -300,7 +300,8 @@ begin
   FGCodeParser.ParseLines(EditorFrame.SynEditor.Lines);
   View3DFrame.SetSegments(FGCodeParser.Segments, FGCodeParser.Count,
     FGCodeParser.MinX, FGCodeParser.MinY, FGCodeParser.MinZ,
-    FGCodeParser.MaxX, FGCodeParser.MaxY, FGCodeParser.MaxZ);
+    FGCodeParser.MaxX, FGCodeParser.MaxY, FGCodeParser.MaxZ,
+    FGCodeParser.MaxPower);
 end;
 
 procedure TForm1.SpoilboardGenerated(const AProgramText: string);
