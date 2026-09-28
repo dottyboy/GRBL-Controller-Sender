@@ -11,7 +11,7 @@ uses
   uprobeframe, utoolsframe, usettingsgridframe, ufluidncframe,
   ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
-  umaterialpresetframe, ucustombuttonframe;
+  umaterialpresetframe, ucustombuttonframe, urasterimportframe;
 
 type
 
@@ -48,6 +48,7 @@ type
     TabFluidNC: TTabSheet;
     TabFirmwareBuilder: TTabSheet;
     TabSpoilboard: TTabSheet;
+    TabRasterImport: TTabSheet;
     TabLaserControl: TTabSheet;
     TabMaterials: TTabSheet;
     TabMacros: TTabSheet;
@@ -64,6 +65,7 @@ type
     FluidNCFrame: TFluidNCFrame;
     FirmwareBuilderFrame: TFirmwareBuilderFrame;
     SpoilboardFrame: TSpoilboardFrame;
+    RasterImportFrame: TRasterImportFrame;
     LaserControlFrame: TLaserControlFrame;
     MaterialPresetFrame: TMaterialPresetFrame;
     CustomButtonFrame: TCustomButtonFrame;
@@ -88,6 +90,7 @@ type
     procedure CaptureConnectionDefaults;
     procedure View3DRequestParse(Sender: TObject);
     procedure SpoilboardGenerated(const AProgramText: string);
+    procedure RasterGenerated(const AProgramText: string);
   public
 
   end;
@@ -149,6 +152,9 @@ begin
   TabSpoilboard := Pages.AddTabSheet;
   TabSpoilboard.Caption := 'Spoilboard';
 
+  TabRasterImport := Pages.AddTabSheet;
+  TabRasterImport.Caption := 'Raster Import';
+
   TabLaserControl := Pages.AddTabSheet;
   TabLaserControl.Caption := 'Laser Control';
   TabLaserControl.TabVisible := False; // shown only once BoardInfo.SupportLaserMode is known True
@@ -206,6 +212,10 @@ begin
   SpoilboardFrame := TSpoilboardFrame.Create(TabSpoilboard);
   SpoilboardFrame.Parent := TabSpoilboard;
   SpoilboardFrame.OnGenerated := @SpoilboardGenerated;
+
+  RasterImportFrame := TRasterImportFrame.Create(TabRasterImport);
+  RasterImportFrame.Parent := TabRasterImport;
+  RasterImportFrame.OnGenerated := @RasterGenerated;
   // SetSender is used only by "Send Travel Limits" ($130/$131/$132) -
   // generating/loading g-code never touches the sender.
   SpoilboardFrame.SetSender(FSender);
@@ -334,6 +344,13 @@ begin
   // user reviews/edits/saves/sends it from there, this frame never touches
   // the sender directly. CurrentFile stays '' (unsaved) so Save/Save As
   // asks for a filename rather than silently overwriting whatever was open.
+  EditorFrame.LoadGeneratedText(AProgramText);
+  View3DRequestParse(Self);
+  Pages.ActivePage := TabView3D;
+end;
+
+procedure TForm1.RasterGenerated(const AProgramText: string);
+begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
   Pages.ActivePage := TabView3D;
