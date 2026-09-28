@@ -18,7 +18,8 @@ interface
 uses
   Classes, SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls,
   Spin, ulasercommand, ulasersender, usender, uappconfig,
-  usafetycountdownform, umaterialpreset, ui18n;
+  usafetycountdownform, umaterialpreset, ucustombutton, ucustombuttonstore,
+  ui18n;
 
 type
 
@@ -26,6 +27,7 @@ type
 
   TLaserControlFrame = class(TFrame)
     BtnAbort: TButton;
+    BtnEditMacros: TButton;
     BtnPauseResume: TButton;
     BtnStart: TButton;
     BtnTestFire: TButton;
@@ -40,6 +42,7 @@ type
     LblFeedValue: TLabel;
     LblFooter: TLabel;
     LblHeader: TLabel;
+    LblMacros: TLabel;
     LblPasses: TLabel;
     LblProgress: TLabel;
     LblRapid: TLabel;
@@ -47,6 +50,7 @@ type
     LblSpindleValue: TLabel;
     LblStatus: TLabel;
     LblTestFirePower: TLabel;
+    MacroPanel: TPanel;
     MemoFooter: TMemo;
     MemoHeader: TMemo;
     RbRapid100: TRadioButton;
@@ -56,6 +60,7 @@ type
     TrackFeed: TTrackBar;
     TrackSpindle: TTrackBar;
     procedure BtnAbortClick(Sender: TObject);
+    procedure BtnEditMacrosClick(Sender: TObject);
     procedure BtnPauseResumeClick(Sender: TObject);
     procedure BtnStartClick(Sender: TObject);
     procedure BtnTestFireClick(Sender: TObject);
@@ -69,6 +74,15 @@ type
     FEditorLines: TStrings;
     FProgram: TLaserProgram;
     FIsPaused: Boolean;
+    // Plan Phase 14: macro button strip, dynamically (re)built from the
+    // saved library each time it might have changed (frame creation and
+    // right after the management dialog closes) - mirrors this app's
+    // existing pattern of building controls at runtime (umain.pas's
+    // Pages.AddTabSheet calls), just one level lower (buttons, not tabs).
+    FButtonStore: TCustomButtonStore;
+    FButtons: TCustomButtonArray;
+    FOnEditMacros: TNotifyEvent;
+    procedure MacroButtonClick(Sender: TObject);
     procedure SetStatus(const AMsg: string; AIsError: Boolean);
   public
     constructor Create(AOwner: TComponent); override;
@@ -93,6 +107,12 @@ type
     // 2's M5-on-abort guarantee, Phase 6's countdown). The user still sets
     // the real M3 S/F words in their own g-code body, same as always.
     procedure ApplyMaterialPreset(const APreset: TMaterialPreset);
+    // Plan Phase 14: reloads the macro button strip from custombuttons.ini -
+    // called by umain.pas whenever the Laser Control tab becomes active, so
+    // edits made on the separate Macros tab (ucustombuttonframe.pas) show
+    // up here without needing a direct dependency between the two frames.
+    procedure RefreshMacroButtons;
+    property OnEditMacros: TNotifyEvent read FOnEditMacros write FOnEditMacros;
   end;
 
 implementation
@@ -119,10 +139,15 @@ begin
   MemoHeader.Lines.Add('G21');
   MemoHeader.Lines.Add('G90');
   MemoFooter.Lines.Add('M5');
+
+  FButtonStore := TCustomButtonStore.Create(
+    IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'custombuttons.ini');
+  RefreshMacroButtons;
 end;
 
 destructor TLaserControlFrame.Destroy;
 begin
+  FButtonStore.Free;
   FProgram.Free;
   inherited Destroy;
 end;
@@ -336,6 +361,55 @@ begin
       Exit;
     end;
   MemoHeader.Lines.Insert(0, commentLine);
+end;
+
+procedure TLaserControlFrame.RefreshMacroButtons;
+var
+  i: Integer;
+  btn: TButton;
+const
+  BTN_WIDTH = 130;
+  BTN_HEIGHT = 26;
+  BTN_GAP = 6;
+begin
+  FButtons := FButtonStore.LoadAll;
+  MacroPanel.DestroyComponents; // frees any TButtons created by a prior call
+  for i := 0 to High(FButtons) do
+  begin
+    btn := TButton.Create(MacroPanel);
+    btn.Parent := MacroPanel;
+    btn.Caption := FButtons[i].Name;
+    btn.Left := (i mod 4) * (BTN_WIDTH + BTN_GAP);
+    btn.Top := (i div 4) * (BTN_HEIGHT + BTN_GAP);
+    btn.Width := BTN_WIDTH;
+    btn.Height := BTN_HEIGHT;
+    btn.Tag := i;
+    btn.OnClick := @MacroButtonClick;
+  end;
+end;
+
+procedure TLaserControlFrame.MacroButtonClick(Sender: TObject);
+var
+  idx, i: Integer;
+  lines: TStringList;
+begin
+  if FSender = nil then Exit;
+  idx := TButton(Sender).Tag;
+  if (idx < 0) or (idx > High(FButtons)) then Exit;
+  lines := TStringList.Create;
+  try
+    lines.Text := FButtons[idx].GCode;
+    for i := 0 to lines.Count - 1 do
+      if Trim(lines[i]) <> '' then
+        FSender.EnqueueGCode(lines[i]);
+  finally
+    lines.Free;
+  end;
+end;
+
+procedure TLaserControlFrame.BtnEditMacrosClick(Sender: TObject);
+begin
+  if Assigned(FOnEditMacros) then FOnEditMacros(Self);
 end;
 
 end.

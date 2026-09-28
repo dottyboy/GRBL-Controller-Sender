@@ -11,7 +11,7 @@ uses
   uprobeframe, utoolsframe, usettingsgridframe, ufluidncframe,
   ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
-  umaterialpresetframe;
+  umaterialpresetframe, ucustombuttonframe;
 
 type
 
@@ -50,6 +50,7 @@ type
     TabSpoilboard: TTabSheet;
     TabLaserControl: TTabSheet;
     TabMaterials: TTabSheet;
+    TabMacros: TTabSheet;
     TabTerminal: TTabSheet;
     ConnectFrame: TConnectFrame;
     DROFrame: TDROFrame;
@@ -65,6 +66,7 @@ type
     SpoilboardFrame: TSpoilboardFrame;
     LaserControlFrame: TLaserControlFrame;
     MaterialPresetFrame: TMaterialPresetFrame;
+    CustomButtonFrame: TCustomButtonFrame;
     FLastFirmwareName: string; // tracks BoardInfo.FirmwareName so TabFluidNC
                                 // is only rebuilt/toggled on an actual change
     // Plan Phase 9: tracks BoardInfo.SupportLaserMode so TabLaserControl is
@@ -80,6 +82,8 @@ type
     procedure SenderStateChanged(Sender: TObject);
     procedure OfferLaserResume;
     procedure MaterialPresetApply(const APreset: TMaterialPreset);
+    procedure EditMacrosRequested(Sender: TObject);
+    procedure PagesChange(Sender: TObject);
     procedure ApplyConnectionDefaults;
     procedure CaptureConnectionDefaults;
     procedure View3DRequestParse(Sender: TObject);
@@ -152,6 +156,9 @@ begin
   TabMaterials := Pages.AddTabSheet;
   TabMaterials.Caption := 'Materials';
 
+  TabMacros := Pages.AddTabSheet;
+  TabMacros.Caption := 'Macros';
+
   TabTerminal := Pages.AddTabSheet;
   TabTerminal.Caption := 'Terminal';
 
@@ -212,6 +219,12 @@ begin
   MaterialPresetFrame := TMaterialPresetFrame.Create(TabMaterials);
   MaterialPresetFrame.Parent := TabMaterials;
   MaterialPresetFrame.OnApply := @MaterialPresetApply;
+
+  CustomButtonFrame := TCustomButtonFrame.Create(TabMacros);
+  CustomButtonFrame.Parent := TabMacros;
+
+  LaserControlFrame.OnEditMacros := @EditMacrosRequested;
+  Pages.OnChange := @PagesChange;
 
   TerminalFrame := TTerminalFrame.Create(TabTerminal);
   TerminalFrame.Parent := TabTerminal;
@@ -335,6 +348,21 @@ begin
   // user preparing a job before ever connecting would want to happen.
   LaserControlFrame.ApplyMaterialPreset(APreset);
   Pages.ActivePage := TabLaserControl;
+end;
+
+procedure TForm1.EditMacrosRequested(Sender: TObject);
+begin
+  Pages.ActivePage := TabMacros;
+end;
+
+procedure TForm1.PagesChange(Sender: TObject);
+begin
+  // Picks up edits made on the Macros tab the moment the user switches back
+  // to Laser Control - reactive-refresh, same reasoning as RefreshState's
+  // own doc comment (avoids a dedicated poll/timer for something that only
+  // needs to be current when actually shown).
+  if Pages.ActivePage = TabLaserControl then
+    LaserControlFrame.RefreshMacroButtons;
 end;
 
 procedure TForm1.MenuFileExitClick(Sender: TObject);

@@ -265,4 +265,30 @@ object LaserControlFrame: TLaserControlFrame
     OnClick = BtnTestFireClick
     TabOrder = 16
   end
+  object LblMacros: TLabel
+    Left = 12
+    Height = 15
+    Top = 504
+    Width = 46
+    Caption = 'Macros'
+  end
+  object BtnEditMacros: TButton
+    Left = 100
+    Height = 24
+    Top = 500
+    Width = 120
+    Caption = 'Edit Macros...'
+    OnClick = BtnEditMacrosClick
+    TabOrder = 17
+  end
+  object MacroPanel: TPanel
+    Left = 12
+    Height = 84
+    Top = 528
+    Width = 676
+    BevelOuter = bvLowered
+    ClientHeight = 84
+    ClientWidth = 676
+    TabOrder = 18
+  end
 end

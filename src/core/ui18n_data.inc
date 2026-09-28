@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..220] of array[0..2] of string = (
+  Catalog: array[0..225] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -220,5 +220,10 @@ const
     ('Materials', 'Materijali', 'Materialien'),
     ('Example (edit me)', 'Primjer (uredi me)', 'Beispiel (bearbeiten)'),
     ('Add Material', 'Dodaj materijal', 'Material hinzufügen'),
-    ('Apply to Laser Control', 'Primijeni na upravljanje laserom', 'Auf Lasersteuerung anwenden')
+    ('Apply to Laser Control', 'Primijeni na upravljanje laserom', 'Auf Lasersteuerung anwenden'),
+    ('Macro Buttons', 'Makro gumbi', 'Makro-Schaltflächen'),
+    ('Add Button', 'Dodaj gumb', 'Schaltfläche hinzufügen'),
+    ('Each button enqueues its g-code when clicked on the Laser Control tab.', 'Svaki gumb postavlja svoj g-kod u red kad se klikne na kartici Upravljanje laserom.', 'Jede Schaltfläche reiht ihren G-Code ein, wenn sie im Tab Lasersteuerung angeklickt wird.'),
+    ('Macros', 'Makroi', 'Makros'),
+    ('Edit Macros...', 'Uredi makroe...', 'Makros bearbeiten...')
   );
