@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, Graphics,
-  usender, uportlist, uboardcatalog, ui18n;
+  usender, uportlist, uboardcatalog, ui18n, ugrblemulator;
 
 type
 
@@ -133,6 +133,11 @@ begin
   finally
     ports.Free;
   end;
+  // Plan Phase 19: the fake GRBL backend is always offered as a port
+  // choice, real-hardware scan or not - it's the standing regression
+  // harness for Phases 1-18, meant to be usable with nothing plugged in.
+  if CboPort.Items.IndexOf(EMULATOR_DEVICE_NAME) < 0 then
+    CboPort.Items.Add(EMULATOR_DEVICE_NAME);
   if (cur <> '') and (CboPort.Items.IndexOf(cur) < 0) then
     CboPort.Items.Add(cur);
   if CboPort.Text = '' then
@@ -173,6 +178,17 @@ begin
     3: kind := ckG2Core;
   else
     kind := ckGRBL1;
+  end;
+
+  // The emulator only speaks GRBL1's own wire dialect (pipe-delimited
+  // status, "[VER:..]" build-info tags) - see ugrblemulator.pas's own
+  // header comment for why the other 3 controllers' parsers aren't faked
+  // too. Force the match here rather than silently misparsing if the user
+  // left a different Controller selected from a previous real connection.
+  if CboPort.Text = EMULATOR_DEVICE_NAME then
+  begin
+    kind := ckGRBL1;
+    CboController.ItemIndex := 0;
   end;
 
   FSender.Connect(CboPort.Text, StrToIntDef(CboBaud.Text, 115200), kind);

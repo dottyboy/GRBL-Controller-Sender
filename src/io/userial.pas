@@ -5,7 +5,7 @@ unit userial;
 interface
 
 uses
-  Classes, SysUtils, LazSerial;
+  Classes, SysUtils, LazSerial, ugrblemulator;
 
 type
   { TSerialLink wraps TLazSerial for blocking, poll-driven use from a
@@ -18,10 +18,17 @@ type
     the same port would race on the same underlying handle. Only ONE
     thread (usender.pas's TSenderThread) may call ReadLine/WriteRaw/
     WriteLine on an open TSerialLink - the main thread only calls
-    OpenPort/ClosePort/IsOpen. }
+    OpenPort/ClosePort/IsOpen.
+
+    Plan Phase 19: when OpenPort's ADevice is the special
+    EMULATOR_DEVICE_NAME sentinel, this class routes every call to an
+    owned TGrblEmulator instead of the real TLazSerial - same public API,
+    zero changes needed anywhere else in the protocol stack (usender.pas
+    only ever talks to TSerialLink, never to TLazSerial directly). }
   TSerialLink = class
   private
     FSerial: TLazSerial;
+    FEmulator: TGrblEmulator; // non-nil only while "connected" to the emulator
   public
     constructor Create(AOwner: TComponent);
     destructor Destroy; override;
@@ -90,6 +97,12 @@ end;
 
 procedure TSerialLink.OpenPort(const ADevice: string; ABaud: Integer);
 begin
+  if ADevice = EMULATOR_DEVICE_NAME then
+  begin
+    FreeAndNil(FEmulator);
+    FEmulator := TGrblEmulator.Create;
+    Exit;
+  end;
   FSerial.Device := ADevice;
   FSerial.BaudRate := BaudToEnum(ABaud);
   FSerial.Active := True;
@@ -97,17 +110,30 @@ end;
 
 procedure TSerialLink.ClosePort;
 begin
+  FreeAndNil(FEmulator);
   if FSerial.Active then
     FSerial.Active := False;
 end;
 
 function TSerialLink.IsOpen: Boolean;
 begin
-  Result := FSerial.Active;
+  Result := (FEmulator <> nil) or FSerial.Active;
 end;
 
 function TSerialLink.ReadLine(ATimeoutMs: Integer): string;
 begin
+  if FEmulator <> nil then
+  begin
+    Result := FEmulator.ReadLine;
+    // Mirrors a real blocking-with-timeout serial read: if nothing is
+    // pending right now, wait out the same timeout a real board's silence
+    // would cost before giving up - without this, TSenderThread's own
+    // loop (which has no other pacing between reads) would busy-spin one
+    // CPU core as fast as possible against an emulator that never blocks.
+    if Result = '' then
+      Sleep(ATimeoutMs);
+    Exit;
+  end;
   if not FSerial.Active then
   begin
     Result := '';
@@ -118,12 +144,27 @@ end;
 
 procedure TSerialLink.WriteRaw(const AData: string);
 begin
+  if FEmulator <> nil then
+  begin
+    FEmulator.WriteRaw(AData);
+    Exit;
+  end;
   if FSerial.Active then
     FSerial.SynSer.SendString(AData);
 end;
 
 procedure TSerialLink.WriteLine(const ALine: string);
 begin
+  if FEmulator <> nil then
+  begin
+    // Deliberately NOT routed through WriteRaw: the emulator's WriteRaw is
+    // a per-BYTE realtime-command dispatcher ('?', '!', '~', Ctrl-X) with
+    // no case arm for ordinary g-code characters or the trailing LF - a
+    // queued line needs the emulator's own line-oriented WriteLine/
+    // HandleLine path instead.
+    FEmulator.WriteLine(ALine);
+    Exit;
+  end;
   WriteRaw(ALine + #10);
 end;
 

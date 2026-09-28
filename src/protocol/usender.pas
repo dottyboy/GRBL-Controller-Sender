@@ -410,23 +410,40 @@ begin
     // still holding onto, meaning it silently dropped that line's "ok"
     // (electrical noise on RX is the usual real-world cause). Only acted
     // on after WATCHDOG_MISMATCH_THRESHOLD consecutive status replies
-    // agree, to avoid reacting to one stale/racy read; recovery mirrors
-    // exactly what a real "ok" does (ugenericcontroller.pas ParseLine's
-    // 'ok' branch: AQueue.PopFront).
-    if (FSender.FState.Controller = 'GRBL1') and (FSender.FQueueInternal.Count > 0) and
-       (FSender.FState.RxBytes + FSender.FQueueInternal.SumLengths > RX_BUFFER_SIZE) then
+    // agree, to avoid reacting to one stale/racy read.
+    //
+    // Deliberately gated on THIS iteration having just read a fresh
+    // '<...>' status line - not evaluated on every loop tick regardless
+    // (a real, latent bug found via Phase 19's own emulator harness,
+    // pre-dating it: evaluating unconditionally compares a STALE RxBytes
+    // - left over from a status reply read before some earlier multi-line
+    // response, e.g. a "$$" settings dump, even started - against a
+    // SumLengths that's merely elevated because that response's own
+    // several-lines-then-ok hasn't fully arrived yet, several iterations
+    // later. That's not a dropped ok, just a multi-line reply still in
+    // flight, but it could hold the mismatch condition true for enough
+    // consecutive iterations to cross WATCHDOG_MISMATCH_THRESHOLD on its
+    // own - against real hardware too, not just the emulator, since a
+    // real "$$" dump is genuinely multiple lines before its own "ok").
+    // Recovery mirrors exactly what a real "ok" does
+    // (ugenericcontroller.pas ParseLine's 'ok' branch: AQueue.PopFront).
+    if (line <> '') and (line[1] = '<') then
     begin
-      Inc(watchdogMismatch);
-      if watchdogMismatch >= WATCHDOG_MISMATCH_THRESHOLD then
+      if (FSender.FState.Controller = 'GRBL1') and (FSender.FQueueInternal.Count > 0) and
+         (FSender.FState.RxBytes + FSender.FQueueInternal.SumLengths > RX_BUFFER_SIZE) then
       begin
-        FSender.LogError('[watchdog] recovered a likely dropped ok (buffer mismatch)');
-        FSender.FQueueInternal.PopFront;
-        Synchronize(@FSender.FlushToUI);
+        Inc(watchdogMismatch);
+        if watchdogMismatch >= WATCHDOG_MISMATCH_THRESHOLD then
+        begin
+          FSender.LogError('[watchdog] recovered a likely dropped ok (buffer mismatch)');
+          FSender.FQueueInternal.PopFront;
+          Synchronize(@FSender.FlushToUI);
+          watchdogMismatch := 0;
+        end;
+      end
+      else
         watchdogMismatch := 0;
-      end;
-    end
-    else
-      watchdogMismatch := 0;
+    end;
 
     // Auto-cooling (plan Phase 7): only active while in laser mode AND
     // the connected board is known to support it (BoardInfo.
