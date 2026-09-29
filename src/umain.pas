@@ -48,7 +48,20 @@ type
     FLaserUsageActiveGuid: string;
     FSincroStart: TSincroStartListener;
     FGCodeParser: TGCodeParser;
-    Pages: TPageControl;
+    // GUI reorganization ("razmisliti o tome ima li smisla??" - user
+    // agreed to proceed, "vjerujemo tvom izboru"): 17 flat top-level tabs
+    // no longer fit the tab bar without scrolling, so they're now grouped
+    // into three outer tabs (Machine/Laser/Settings & Tools), each with
+    // its own INNER TPageControl holding the original tab sheets
+    // unchanged. GroupPages uses tpBottom (not tpLeft/tpRight) - LCL's
+    // vertical tab rendering is inconsistent across widgetsets even
+    // though this project currently only ships Qt5, and tpTop/tpBottom
+    // are the most universally well-supported positions, matching the
+    // actual reason Qt5 was chosen for this project in the first place
+    // (reliable cross-platform rendering, not a Qt5-only bet).
+    GroupPages: TPageControl;
+    GroupMachine, GroupLaser, GroupSettings: TTabSheet;
+    PagesMachine, PagesLaser, PagesSettings: TPageControl;
     TabControl: TTabSheet;
     TabEditor: TTabSheet;
     TabView3D: TTabSheet;
@@ -112,6 +125,12 @@ type
     procedure ApplyActiveLaserUsage;
     procedure StoreActiveLaserUsage;
     procedure SincroStartMessageReceived(const AMsg: TSincroStartMessage);
+    // ActivateTab: switches to ATab regardless of which of the three
+    // inner PageControls it lives in - flips GroupPages to the right
+    // outer group first (derived from ATab.PageControl's own Parent,
+    // never hardcoded per call site), then that inner PageControl to
+    // ATab. Replaces every old "Pages.ActivePage := TabX" call site.
+    procedure ActivateTab(ATab: TTabSheet);
   public
 
   end;
@@ -159,62 +178,82 @@ begin
   end;
   ApplyActiveLaserUsage;
 
-  Pages := TPageControl.Create(Self);
-  Pages.Parent := Self;
-  Pages.Align := alClient;
+  GroupPages := TPageControl.Create(Self);
+  GroupPages.Parent := Self;
+  GroupPages.Align := alClient;
+  GroupPages.TabPosition := tpBottom;
 
-  TabControl := Pages.AddTabSheet;
+  GroupMachine := GroupPages.AddTabSheet;
+  GroupMachine.Caption := 'Machine';
+  GroupLaser := GroupPages.AddTabSheet;
+  GroupLaser.Caption := 'Laser';
+  GroupSettings := GroupPages.AddTabSheet;
+  GroupSettings.Caption := 'Settings && Tools';
+
+  PagesMachine := TPageControl.Create(GroupMachine);
+  PagesMachine.Parent := GroupMachine;
+  PagesMachine.Align := alClient;
+
+  PagesLaser := TPageControl.Create(GroupLaser);
+  PagesLaser.Parent := GroupLaser;
+  PagesLaser.Align := alClient;
+
+  PagesSettings := TPageControl.Create(GroupSettings);
+  PagesSettings.Parent := GroupSettings;
+  PagesSettings.Align := alClient;
+
+  TabControl := PagesMachine.AddTabSheet;
   TabControl.Caption := 'Control';
 
-  TabEditor := Pages.AddTabSheet;
+  TabEditor := PagesMachine.AddTabSheet;
   TabEditor.Caption := 'Editor';
 
-  TabView3D := Pages.AddTabSheet;
+  TabView3D := PagesMachine.AddTabSheet;
   TabView3D.Caption := '3D View';
 
-  TabProbe := Pages.AddTabSheet;
+  TabProbe := PagesMachine.AddTabSheet;
   TabProbe.Caption := 'Probe';
 
-  TabTools := Pages.AddTabSheet;
-  TabTools.Caption := 'Tools';
-
-  TabSettingsGrid := Pages.AddTabSheet;
-  TabSettingsGrid.Caption := 'Settings ($$)';
-
-  TabFluidNC := Pages.AddTabSheet;
-  TabFluidNC.Caption := 'FluidNC Config';
-  TabFluidNC.TabVisible := False; // shown only once a FluidNC board is detected
-
-  TabFirmwareBuilder := Pages.AddTabSheet;
-  TabFirmwareBuilder.Caption := 'Firmware Builder';
-
-  TabSpoilboard := Pages.AddTabSheet;
+  TabSpoilboard := PagesMachine.AddTabSheet;
   TabSpoilboard.Caption := 'Spoilboard';
 
-  TabRasterImport := Pages.AddTabSheet;
+  TabTerminal := PagesMachine.AddTabSheet;
+  TabTerminal.Caption := 'Terminal';
+
+  TabRasterImport := PagesLaser.AddTabSheet;
   TabRasterImport.Caption := 'Raster Import';
 
-  TabSvgImport := Pages.AddTabSheet;
+  TabSvgImport := PagesLaser.AddTabSheet;
   TabSvgImport.Caption := 'SVG / Vectorize';
 
-  TabLaserTestGen := Pages.AddTabSheet;
+  TabLaserTestGen := PagesLaser.AddTabSheet;
   TabLaserTestGen.Caption := 'Laser Test Patterns';
 
-  TabLaserControl := Pages.AddTabSheet;
+  TabLaserControl := PagesLaser.AddTabSheet;
   TabLaserControl.Caption := 'Laser Control';
   TabLaserControl.TabVisible := False; // shown only once BoardInfo.SupportLaserMode is known True
 
-  TabMaterials := Pages.AddTabSheet;
+  TabMaterials := PagesLaser.AddTabSheet;
   TabMaterials.Caption := 'Materials';
 
-  TabMacros := Pages.AddTabSheet;
+  TabTools := PagesSettings.AddTabSheet;
+  TabTools.Caption := 'Tools';
+
+  TabSettingsGrid := PagesSettings.AddTabSheet;
+  TabSettingsGrid.Caption := 'Settings ($$)';
+
+  TabFluidNC := PagesSettings.AddTabSheet;
+  TabFluidNC.Caption := 'FluidNC Config';
+  TabFluidNC.TabVisible := False; // shown only once a FluidNC board is detected
+
+  TabFirmwareBuilder := PagesSettings.AddTabSheet;
+  TabFirmwareBuilder.Caption := 'Firmware Builder';
+
+  TabMacros := PagesSettings.AddTabSheet;
   TabMacros.Caption := 'Macros';
 
-  TabHotkeys := Pages.AddTabSheet;
+  TabHotkeys := PagesSettings.AddTabSheet;
   TabHotkeys.Caption := 'Hotkeys';
-
-  TabTerminal := Pages.AddTabSheet;
-  TabTerminal.Caption := 'Terminal';
 
   ConnectFrame := TConnectFrame.Create(TabControl);
   ConnectFrame.Parent := TabControl;
@@ -294,7 +333,7 @@ begin
   HotkeysFrame.SetHotkeyMap(FHotkeyMap);
 
   LaserControlFrame.OnEditMacros := @EditMacrosRequested;
-  Pages.OnChange := @PagesChange;
+  PagesLaser.OnChange := @PagesChange; // only TabLaserControl (see below) cares
 
   TerminalFrame := TTerminalFrame.Create(TabTerminal);
   TerminalFrame.Parent := TabTerminal;
@@ -436,28 +475,28 @@ begin
   // asks for a filename rather than silently overwriting whatever was open.
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
-  Pages.ActivePage := TabView3D;
+  ActivateTab(TabView3D);
 end;
 
 procedure TForm1.RasterGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
-  Pages.ActivePage := TabView3D;
+  ActivateTab(TabView3D);
 end;
 
 procedure TForm1.SvgGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
-  Pages.ActivePage := TabView3D;
+  ActivateTab(TabView3D);
 end;
 
 procedure TForm1.LaserTestGenGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
-  Pages.ActivePage := TabView3D;
+  ActivateTab(TabView3D);
 end;
 
 // ApplyActiveLaserUsage: points FSender.LaserUsage (the one counter
@@ -525,13 +564,13 @@ begin
       if FileExists(AMsg.Path) then
       begin
         SvgImportFrame.ImportFile(AMsg.Path);
-        Pages.ActivePage := TabSvgImport;
+        ActivateTab(TabSvgImport);
       end;
     sskImportRaster:
       if FileExists(AMsg.Path) then
       begin
         RasterImportFrame.ImportFile(AMsg.Path);
-        Pages.ActivePage := TabRasterImport;
+        ActivateTab(TabRasterImport);
       end;
   end;
 end;
@@ -556,12 +595,25 @@ begin
   // hidden tab the same as any other frame field, and it's exactly what a
   // user preparing a job before ever connecting would want to happen.
   LaserControlFrame.ApplyMaterialPreset(APreset);
-  Pages.ActivePage := TabLaserControl;
+  ActivateTab(TabLaserControl);
 end;
 
 procedure TForm1.EditMacrosRequested(Sender: TObject);
 begin
-  Pages.ActivePage := TabMacros;
+  ActivateTab(TabMacros);
+end;
+
+procedure TForm1.ActivateTab(ATab: TTabSheet);
+begin
+  if (ATab = nil) or (ATab.PageControl = nil) then Exit;
+  // ATab.PageControl is one of PagesMachine/PagesLaser/PagesSettings, and
+  // ITS OWN Parent is the outer GroupPages tab sheet (GroupMachine/
+  // GroupLaser/GroupSettings) that hosts it - derived generically here so
+  // this never needs updating if a tab is ever moved to a different
+  // group later.
+  if ATab.PageControl.Parent is TTabSheet then
+    GroupPages.ActivePage := TTabSheet(ATab.PageControl.Parent);
+  ATab.PageControl.ActivePage := ATab;
 end;
 
 procedure TForm1.PagesChange(Sender: TObject);
@@ -570,7 +622,7 @@ begin
   // to Laser Control - reactive-refresh, same reasoning as RefreshState's
   // own doc comment (avoids a dedicated poll/timer for something that only
   // needs to be current when actually shown).
-  if Pages.ActivePage = TabLaserControl then
+  if PagesLaser.ActivePage = TabLaserControl then
     LaserControlFrame.RefreshMacroButtons;
 end;
 
