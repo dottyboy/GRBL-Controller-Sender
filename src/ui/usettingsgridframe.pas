@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Math, Forms, Controls, StdCtrls, ExtCtrls, Grids,
-  usender, usettingsmeta, ui18n, usettinghelp;
+  usender, usettingsmeta, ui18n, usettinghelp, usettingtemplates;
 
 const
   COL_ID = 0;
@@ -25,6 +25,7 @@ type
     BtnApply: TButton;
     BtnFetchDescriptions: TButton;
     BtnRefresh: TButton;
+    CboTemplate: TComboBox;
     DescTimer: TTimer;
     Grid: TStringGrid;
     LblStatus: TLabel;
@@ -33,6 +34,7 @@ type
     procedure BtnApplyClick(Sender: TObject);
     procedure BtnFetchDescriptionsClick(Sender: TObject);
     procedure BtnRefreshClick(Sender: TObject);
+    procedure CboTemplateChange(Sender: TObject);
     procedure DescTimerTimer(Sender: TObject);
     procedure RefreshTimerTimer(Sender: TObject);
   private
@@ -41,7 +43,10 @@ type
     // Apply diffs the grid against this and only writes rows that actually
     // changed, rather than re-sending the whole map on every click.
     FShadow: TStringList;
+    FTemplates: TSettingTemplateArray;
     procedure PopulateGridFromState;
+    procedure RenderGridFromShadow;
+    procedure LoadTemplate(const ATemplate: TSettingTemplate);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -60,6 +65,8 @@ end;
 { TSettingsGridFrame }
 
 constructor TSettingsGridFrame.Create(AOwner: TComponent);
+var
+  i: Integer;
 begin
   inherited Create(AOwner);
   FShadow := TStringList.Create;
@@ -67,6 +74,15 @@ begin
   Grid.Cells[COL_VALUE, 0] := 'Value';
   Grid.Cells[COL_DESC, 0] := 'Description';
   LblStatus.Caption := T('Not connected');
+
+  // Phase 26: "Load template..." combo, real board/machine $$ defaults
+  // (usettingtemplates.pas) - index 0 is a non-selectable placeholder so
+  // CboTemplateChange only fires on an actual, deliberate pick.
+  FTemplates := SettingTemplates;
+  CboTemplate.Items.Add(T('Load template...'));
+  for i := 0 to High(FTemplates) do
+    CboTemplate.Items.Add(FTemplates[i].DisplayName);
+  CboTemplate.ItemIndex := 0;
 end;
 
 destructor TSettingsGridFrame.Destroy;
@@ -81,11 +97,6 @@ begin
 end;
 
 procedure TSettingsGridFrame.PopulateGridFromState;
-var
-  i, id: Integer;
-  meta: TSettingMeta;
-  descCount: Integer;
-  fallbackDesc: string;
 begin
   if FSender = nil then Exit;
   FShadow.Assign(FSender.State.Settings);
@@ -95,7 +106,22 @@ begin
   // that - sort explicitly so a partial/re-requested dump still displays
   // sensibly).
   FShadow.CustomSort(@CompareIDs);
+  RenderGridFromShadow;
+end;
 
+// RenderGridFromShadow: the actual grid-cell-population loop, split out
+// of PopulateGridFromState (Phase 26) so LoadTemplate can re-render the
+// grid from an FShadow it has just EXTENDED (with placeholder rows for
+// template settings the board hasn't reported) without
+// PopulateGridFromState's own FShadow.Assign(FSender.State.Settings)
+// clobbering those additions.
+procedure TSettingsGridFrame.RenderGridFromShadow;
+var
+  i, id: Integer;
+  meta: TSettingMeta;
+  descCount: Integer;
+  fallbackDesc: string;
+begin
   Grid.RowCount := Max(2, FShadow.Count + 1);
   descCount := 0;
   for i := 0 to FShadow.Count - 1 do
@@ -213,6 +239,59 @@ begin
   end;
 
   LblStatus.Caption := Format('%d changed row(s) sent', [sentCount]);
+end;
+
+// LoadTemplate (Phase 26): fills the grid's VALUE column from a known
+// board/machine template WITHOUT sending anything - BtnApplyClick's
+// existing diff-against-FShadow logic is what actually sends, unchanged.
+// For a setting ID the grid doesn't already know about (never connected,
+// or this board's own $$ dump doesn't include it), adds a placeholder
+// row with an EMPTY known-old-value, so Apply's "newVal <> oldVal" check
+// naturally treats the template's value as changed and sends it; for an
+// ID the grid already has, FShadow's real board-fetched old-value is
+// left untouched - only what's DISPLAYED changes, so Apply's diff still
+// compares against the board's actual current value, not the template.
+procedure TSettingsGridFrame.LoadTemplate(const ATemplate: TSettingTemplate);
+var
+  i, row: Integer;
+  key: string;
+begin
+  for i := 0 to High(ATemplate.Settings) do
+  begin
+    key := IntToStr(ATemplate.Settings[i].ID);
+    if FShadow.IndexOfName(key) < 0 then
+      // NOT FShadow.Values[key] := '' - TStrings' Values setter treats an
+      // empty string as "delete this name" (a real bug caught via live
+      // testing: it silently made this whole placeholder-row path a
+      // no-op), so add the raw "ID=" line directly instead, which reads
+      // back as Name=key, Value='' exactly as intended.
+      FShadow.Add(key + '=');
+  end;
+  FShadow.CustomSort(@CompareIDs);
+  RenderGridFromShadow;
+
+  for row := 1 to Grid.RowCount - 1 do
+  begin
+    key := Grid.Cells[COL_ID, row];
+    for i := 0 to High(ATemplate.Settings) do
+      if IntToStr(ATemplate.Settings[i].ID) = key then
+      begin
+        Grid.Cells[COL_VALUE, row] := ATemplate.Settings[i].Value;
+        Break;
+      end;
+  end;
+
+  LblStatus.Caption := Format(T('Template loaded: %s - review, then Apply'), [ATemplate.DisplayName]);
+end;
+
+procedure TSettingsGridFrame.CboTemplateChange(Sender: TObject);
+var
+  idx: Integer;
+begin
+  idx := CboTemplate.ItemIndex - 1; // index 0 is the placeholder row
+  if (idx < 0) or (idx > High(FTemplates)) then Exit;
+  LoadTemplate(FTemplates[idx]);
+  CboTemplate.ItemIndex := 0; // back to placeholder, so picking the SAME entry twice still fires a change
 end;
 
 end.

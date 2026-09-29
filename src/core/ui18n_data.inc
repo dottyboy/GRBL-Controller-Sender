@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..236] of array[0..2] of string = (
+  Catalog: array[0..238] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -236,5 +236,7 @@ const
     ('Current $%s = %s', 'Trenutno $%s = %s', 'Aktuell $%s = %s'),
     ('No settings loaded yet - is the board connected?', 'Postavke još nisu učitane - je li pločica spojena?', 'Noch keine Einstellungen geladen - ist die Steuerung verbunden?'),
     ('Jogged %s%s - now measure the actual distance moved', 'Pomak izvršen %s%s - sada izmjeri stvarno prijeđenu udaljenost', 'Verfahren %s%s - jetzt die tatsächlich zurückgelegte Strecke messen'),
-    ('Applied: $%s = %s', 'Primijenjeno: $%s = %s', 'Angewendet: $%s = %s')
+    ('Applied: $%s = %s', 'Primijenjeno: $%s = %s', 'Angewendet: $%s = %s'),
+    ('Load template...', 'Učitaj predložak...', 'Vorlage laden...'),
+    ('Template loaded: %s - review, then Apply', 'Predložak učitan: %s - pregledaj, pa primijeni', 'Vorlage geladen: %s - prüfen, dann anwenden')
   );

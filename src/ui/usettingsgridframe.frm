@@ -9,12 +9,12 @@ object SettingsGridFrame: TSettingsGridFrame
   TabOrder = 0
   object ToolBar: TPanel
     Left = 0
-    Height = 40
+    Height = 76
     Top = 0
     Width = 700
     Align = alTop
     BevelOuter = bvNone
-    ClientHeight = 40
+    ClientHeight = 76
     ClientWidth = 700
     TabOrder = 0
     object BtnRefresh: TButton
@@ -51,11 +51,20 @@ object SettingsGridFrame: TSettingsGridFrame
       Width = 84
       Caption = 'Not connected'
     end
+    object CboTemplate: TComboBox
+      Left = 8
+      Height = 26
+      Top = 41
+      Width = 280
+      Style = csDropDownList
+      OnChange = CboTemplateChange
+      TabOrder = 3
+    end
   end
   object Grid: TStringGrid
     Left = 0
-    Height = 360
-    Top = 40
+    Height = 324
+    Top = 76
     Width = 700
     Align = alClient
     ColCount = 3
