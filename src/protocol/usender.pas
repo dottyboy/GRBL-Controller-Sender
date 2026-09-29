@@ -7,7 +7,7 @@ interface
 uses
   Classes, SysUtils, SyncObjs, Math,
   ucncstate, ugenericcontroller, ugrbl0, ugrbl1, usmoothie, ug2core, userial,
-  uxmodem, ulasercooling, ustatebuilder;
+  uxmodem, ulasercooling, ustatebuilder, ulaserusage;
 
 type
   // Laser job progress, for the resume-from-position dialog (plan Phase 5).
@@ -149,6 +149,15 @@ type
     // untouched checkbox (or any pre-Phase-9 code path) keeps today's
     // existing behavior - a supported board always cooled.
     FCoolingEnabled: Boolean;
+    // Plan Phase 20: the currently-ACTIVE laser module's accumulated
+    // usage/lifetime counter - ticked directly by TSenderThread.Execute
+    // (real run-time + power-normalized "true" laser time, mirrors
+    // LaserGRBL's own ComputeLaserTime/ComputeLaserTrueTime - see
+    // ulaserusage.pas). umain.pas owns loading/saving the full multi-
+    // laser list via ulaserusagestore.pas and points this at whichever
+    // counter the user has marked active; this field only ever holds
+    // ONE counter's live, in-memory state.
+    FLaserUsage: TLaserUsageCounter;
     // Phase G: True while uxmodem.pas is doing a synchronous, exclusive
     // XMODEM exchange on the calling thread - TSenderThread.Execute skips
     // its own reads/writes of FSerialLink entirely while this is set, so
@@ -247,6 +256,7 @@ type
     property IsLaserMode: Boolean read FIsLaserMode write FIsLaserMode;
     property CoolingCycle: TCoolingCycle read FCoolingCycle;
     property CoolingEnabled: Boolean read FCoolingEnabled write FCoolingEnabled;
+    property LaserUsage: TLaserUsageCounter read FLaserUsage write FLaserUsage;
     property OnLog: TSenderLogEvent read FOnLog write FOnLog;
     property OnStateChanged: TSenderNotifyEvent read FOnStateChanged write FOnStateChanged;
     property OnProbeResult: TProbeResultEvent read FOnProbeResult write FOnProbeResult;
@@ -325,14 +335,17 @@ end;
 
 procedure TSenderThread.Execute;
 var
-  tr, t: QWord;
+  tr, t, tUsage: QWord;
   tosend: string;
   hasTosend: Boolean;
   line: string;
   watchdogMismatch: Integer;
   queueCountBefore, acked: Integer;
+  usageElapsedMs: QWord;
+  usageElapsedSec, maxPWM: Double;
 begin
   tr := GetTickCount64;
+  tUsage := tr;
   tosend := '';
   hasTosend := False;
   watchdogMismatch := 0;
@@ -460,6 +473,28 @@ begin
     else
       FSender.FCoolingCycle.Tick(False);
 
+    // Plan Phase 20: laser usage/lifetime tracking - mirrors LaserGRBL's
+    // own ComputeLaserTime (real run-time) / ComputeLaserTrueTime
+    // (power-normalized "true" laser time), both driven by an elapsed-
+    // since-last-tick delta exactly like those real methods, including
+    // their own "ignore an absurdly large delta" safety cap (a long
+    // debugger pause or system sleep between iterations should not get
+    // misattributed as real usage). $30 (max spindle/laser power) comes
+    // from the app's own already-populated Phase F settings dictionary -
+    // no fabricated default beyond grbl's own real out-of-box value.
+    usageElapsedMs := t - tUsage;
+    if (usageElapsedMs > 0) and (usageElapsedMs < 600000) then
+    begin
+      usageElapsedSec := usageElapsedMs / 1000.0;
+      if FSender.FState.StateStr = 'Run' then
+        AddRunTime(FSender.FLaserUsage, usageElapsedSec);
+      maxPWM := StrToFloatDef(FSender.FState.Settings.Values['30'], 1000);
+      if maxPWM >= 10 then
+        AddTrueLaserTimePower(FSender.FLaserUsage, usageElapsedSec,
+          Max(0, Min(1, FSender.FState.CurSpindle / maxPWM)));
+    end;
+    tUsage := t;
+
     if FSender.FStopRequested then
     begin
       FSender.FQueue.Clear;
@@ -504,6 +539,7 @@ begin
   FState.Controller := 'GRBL1';
   FCoolingCycle := TCoolingCycle.Create(@FeedHold, @Resume);
   FCoolingEnabled := True;
+  FLaserUsage := CreateDefaultCounter; // overwritten by umain.pas's own Load right after startup
   FLaserBodyLinesOwned := TStringList.Create;
   FLaserFooterLinesOwned := TStringList.Create;
 end;

@@ -50,6 +50,14 @@ type
                                  // interpreter, just tracks the last X/Y/Z
                                  // word seen on any line, enough to make
                                  // status reports look plausible.
+    FCurSpindle: Double;        // last commanded S-word (modal, like real
+                                 // grbl) - 0 after M5, reported in the
+                                 // status report's own FS field so a real
+                                 // caller's Phase 20 usage tracking (which
+                                 // reads FState.CurSpindle from a real
+                                 // status reply, exactly like real
+                                 // hardware) actually sees a laser-on
+                                 // power level while a job runs.
     FIdleCountdown: Integer;    // status polls left before Run settles to Idle
     FDropNextAck: Boolean;      // SimulateDroppedAck's one-shot flag
     // RX-buffer-usage bookkeeping (real, not cosmetic - see the header
@@ -154,6 +162,7 @@ begin
   FReplies.Clear;
   FState := 'Idle';
   FMX := 0; FMY := 0; FMZ := 0;
+  FCurSpindle := 0;
   FIdleCountdown := 0;
   FDropNextAck := False;
   SetLength(FPendingAckLens, 0);
@@ -226,6 +235,18 @@ begin
   FMY := ExtractCoord(line, 'Y', FMY);
   FMZ := ExtractCoord(line, 'Z', FMZ);
 
+  // Modal spindle/laser power (S-word), exactly like real grbl: M3/M4 Sxxx
+  // sets it and it stays "commanded" across subsequent lines until
+  // changed; M5 stops the spindle/laser, reported power drops to 0. This
+  // is what lets a real status reply's own FS: field (not modeled here as
+  // 0,0 unconditionally any more - see WriteRaw's '?' case) actually
+  // reflect laser-on power, which Phase 20's usage tracking reads from a
+  // real status reply exactly as it would from real hardware.
+  if Pos('M5', line) > 0 then
+    FCurSpindle := 0
+  else
+    FCurSpindle := ExtractCoord(line, 'S', FCurSpindle);
+
   if FDropNextAck then
   begin
     FDropNextAck := False;
@@ -255,8 +276,8 @@ begin
             Dec(FIdleCountdown);
             if FIdleCountdown = 0 then FState := 'Idle';
           end;
-          Reply(Format('<%s|MPos:%.3f,%.3f,%.3f|FS:0,0|Bf:15,%d>',
-            [FState, FMX, FMY, FMZ, EMULATOR_RX_BUFFER_SIZE - FBytesReserved]));
+          Reply(Format('<%s|MPos:%.3f,%.3f,%.3f|FS:0,%.0f|Bf:15,%d>',
+            [FState, FMX, FMY, FMZ, FCurSpindle, EMULATOR_RX_BUFFER_SIZE - FBytesReserved]));
         end;
       '!': FState := 'Hold';
       '~': if FState = 'Hold' then FState := 'Idle';

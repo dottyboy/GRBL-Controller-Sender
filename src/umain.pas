@@ -12,7 +12,8 @@ uses
   ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
   umaterialpresetframe, ucustombuttonframe, urasterimportframe,
-  usvgimportframe, uhotkeysframe, ulasertestgenframe;
+  usvgimportframe, uhotkeysframe, ulasertestgenframe, ulaserusage,
+  ulaserusagestore, ulaserusageform;
 
 type
 
@@ -24,6 +25,7 @@ type
     MenuFileExit: TMenuItem;
     MenuTools: TMenuItem;
     MenuToolsSettings: TMenuItem;
+    MenuToolsLaserUsage: TMenuItem;
     MenuLanguage: TMenuItem;
     MenuLangEN: TMenuItem;
     MenuLangHR: TMenuItem;
@@ -33,11 +35,15 @@ type
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure MenuFileExitClick(Sender: TObject);
     procedure MenuToolsSettingsClick(Sender: TObject);
+    procedure MenuToolsLaserUsageClick(Sender: TObject);
     procedure MenuLangClick(Sender: TObject);
   private
     FSender: TSender;
     FAppConfig: TAppConfig;
     FHotkeyMap: THotkeyMap;
+    FLaserUsageStore: TLaserUsageStore;
+    FLaserUsageCounters: TLaserUsageCounterArray;
+    FLaserUsageActiveGuid: string;
     FGCodeParser: TGCodeParser;
     Pages: TPageControl;
     TabControl: TTabSheet;
@@ -100,6 +106,8 @@ type
     procedure RasterGenerated(const AProgramText: string);
     procedure SvgGenerated(const AProgramText: string);
     procedure LaserTestGenGenerated(const AProgramText: string);
+    procedure ApplyActiveLaserUsage;
+    procedure StoreActiveLaserUsage;
   public
 
   end;
@@ -128,6 +136,24 @@ begin
   // defaults (LoadDefaults runs first inside Load either way).
   FHotkeyMap := THotkeyMap.Create;
   FHotkeyMap.Load(IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'hotkeys.ini');
+
+  // Plan Phase 20: load the persisted multi-laser usage/lifetime list and
+  // point FSender.LaserUsage at whichever counter was last active - if
+  // the store is empty (first run) or the saved active guid doesn't
+  // match anything (e.g. it was deleted), seed one real default counter
+  // and activate that, mirroring LaserGRBL's own CreateDefault-when-empty
+  // behavior.
+  FLaserUsageStore := TLaserUsageStore.Create(
+    IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'laserusage.ini');
+  FLaserUsageCounters := FLaserUsageStore.LoadAll;
+  FLaserUsageActiveGuid := FLaserUsageStore.LoadActiveGuid;
+  if Length(FLaserUsageCounters) = 0 then
+  begin
+    SetLength(FLaserUsageCounters, 1);
+    FLaserUsageCounters[0] := CreateDefaultCounter;
+    FLaserUsageActiveGuid := FLaserUsageCounters[0].Guid;
+  end;
+  ApplyActiveLaserUsage;
 
   Pages := TPageControl.Create(Self);
   Pages.Parent := Self;
@@ -313,6 +339,16 @@ begin
   FAppConfig.Free;
   FHotkeyMap.Save(IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'hotkeys.ini');
   FHotkeyMap.Free;
+  // Plan Phase 20: merge the active counter's live, worker-thread-
+  // accumulated stats back into the full list before it's persisted -
+  // FSender.LaserUsage is the one TSenderThread has actually been
+  // ticking, FLaserUsageCounters[...] is whatever stale copy was loaded
+  // at startup. SaveActiveGuid must run AFTER SaveAll (see
+  // ulaserusagestore.pas's own note - SaveAll rewrites the whole file).
+  StoreActiveLaserUsage;
+  FLaserUsageStore.SaveAll(FLaserUsageCounters);
+  FLaserUsageStore.SaveActiveGuid(FLaserUsageActiveGuid);
+  FLaserUsageStore.Free;
   FGCodeParser.Free;
   FSender.Free;
 end;
@@ -409,6 +445,49 @@ begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
   Pages.ActivePage := TabView3D;
+end;
+
+// ApplyActiveLaserUsage: points FSender.LaserUsage (the one counter
+// TSenderThread actually ticks) at whichever entry in FLaserUsageCounters
+// matches FLaserUsageActiveGuid - falls back to the first counter if the
+// guid isn't found (e.g. it was deleted via the Laser Usage dialog while
+// it happened to still be marked active, or a fresh/corrupt store).
+procedure TForm1.ApplyActiveLaserUsage;
+var
+  i: Integer;
+begin
+  if Length(FLaserUsageCounters) = 0 then Exit;
+  for i := 0 to High(FLaserUsageCounters) do
+    if FLaserUsageCounters[i].Guid = FLaserUsageActiveGuid then
+    begin
+      FSender.LaserUsage := FLaserUsageCounters[i];
+      Exit;
+    end;
+  FLaserUsageActiveGuid := FLaserUsageCounters[0].Guid;
+  FSender.LaserUsage := FLaserUsageCounters[0];
+end;
+
+// StoreActiveLaserUsage: the inverse - writes FSender.LaserUsage's live,
+// worker-thread-accumulated stats back into FLaserUsageCounters, so nothing
+// ticked since the dialog was last opened (or since startup) gets lost
+// when the list is next shown or saved.
+procedure TForm1.StoreActiveLaserUsage;
+var
+  i: Integer;
+begin
+  for i := 0 to High(FLaserUsageCounters) do
+    if FLaserUsageCounters[i].Guid = FLaserUsageActiveGuid then
+    begin
+      FLaserUsageCounters[i] := FSender.LaserUsage;
+      Exit;
+    end;
+end;
+
+procedure TForm1.MenuToolsLaserUsageClick(Sender: TObject);
+begin
+  StoreActiveLaserUsage;
+  TLaserUsageForm.Execute(FLaserUsageCounters, FLaserUsageActiveGuid);
+  ApplyActiveLaserUsage;
 end;
 
 procedure TForm1.MaterialPresetApply(const APreset: TMaterialPreset);

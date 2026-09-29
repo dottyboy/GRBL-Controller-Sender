@@ -29,6 +29,10 @@ object Form1: TForm1
         Caption = '&Settings...'
         OnClick = MenuToolsSettingsClick
       end
+      object MenuToolsLaserUsage: TMenuItem
+        Caption = '&Laser Usage...'
+        OnClick = MenuToolsLaserUsageClick
+      end
     end
     object MenuLanguage: TMenuItem
       Caption = '&Language'
