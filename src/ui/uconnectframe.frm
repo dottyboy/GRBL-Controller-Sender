@@ -160,4 +160,15 @@ object ConnectFrame: TConnectFrame
     TabOrder = 6
     OnClick = BtnRefreshInfoClick
   end
+  object BtnWiFi: TButton
+    Left = 484
+    Height = 25
+    Top = 62
+    Width = 90
+    Caption = 'WiFi...'
+    Font.Name = 'Ubuntu'
+    ParentFont = False
+    TabOrder = 7
+    OnClick = BtnWiFiClick
+  end
 end

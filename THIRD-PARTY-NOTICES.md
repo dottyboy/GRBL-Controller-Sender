@@ -153,6 +153,30 @@ addition to this project's own license (see `LICENSE`, GPL-3.0-or-later).**
   the IDE. LGPL permits this kind of linking without imposing GPL terms
   on the rest of this project.
 
+## Synapse / Ararat Synapse (BSD-3-Clause style)
+
+- Project: <http://www.ararat.cz/synapse/> (bundled as CodeTyphon's own
+  `pl_Synapse` package)
+- License: a permissive BSD-3-Clause-style license — confirmed directly
+  from the real license header in `blcksock.pas` itself ("Copyright
+  (c)1999-2021, Lukas Gebauer. All rights reserved. Redistribution and
+  use in source and binary forms... provided that..." - the standard
+  3-clause BSD text, not paraphrased). Synapse is actually tri-licensed
+  upstream (MPL 1.1 / LGPL 2.1 / this BSD-style option, user's choice) -
+  this notice cites the option actually shown in the bundled source,
+  the most permissive of the three and unambiguously GPL-3.0-compatible.
+- What was used: `TLazSerial`'s own `SynSer` field was ALREADY a
+  Synapse `TBlockSerial` from Phase 1 onward (used indirectly, via
+  TLazSerial's own wrapper); Phase 21 (WiFi/telnet direct-connect) is
+  the first place this project's own code calls Synapse directly -
+  `src/io/userial.pas`'s TCP backend and `src/protocol/
+  uwifidiscovery.pas`'s LAN port-scanner both use `blcksock.pas`'s
+  `TTCPBlockSocket` for real (registered as an explicit
+  `RequiredPackages` entry in the `.ctpr` for the first time this phase -
+  confirmed genuinely load-bearing, not just declared: the build failed
+  outright with "Can't find unit blcksock" before this entry was added,
+  and linked cleanly once it was).
+
 ## Free Pascal (FPC) / Lazarus LCL / CodeTyphon
 
 - Projects: <https://www.freepascal.org/>, <https://www.lazarus-ide.org/>,

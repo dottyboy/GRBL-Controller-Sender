@@ -6,7 +6,8 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, Graphics,
-  usender, uportlist, uboardcatalog, ui18n, ugrblemulator;
+  usender, uportlist, uboardcatalog, ui18n, ugrblemulator, userial,
+  uwificonfigform;
 
 type
 
@@ -16,6 +17,7 @@ type
     BtnOpenClose: TButton;
     BtnRefresh: TButton;
     BtnRefreshInfo: TButton;
+    BtnWiFi: TButton;
     CboBaud: TComboBox;
     CboBoardProfile: TComboBox;
     CboController: TComboBox;
@@ -29,6 +31,7 @@ type
     procedure BtnRefreshClick(Sender: TObject);
     procedure BtnOpenCloseClick(Sender: TObject);
     procedure BtnRefreshInfoClick(Sender: TObject);
+    procedure BtnWiFiClick(Sender: TObject);
     procedure CboBoardProfileChange(Sender: TObject);
   private
     FSender: TSender;
@@ -118,6 +121,19 @@ procedure TConnectFrame.BtnRefreshInfoClick(Sender: TObject);
 begin
   if (FSender = nil) or (not FSender.Connected) then Exit;
   FSender.EnqueueGCode('$I');
+end;
+
+procedure TConnectFrame.BtnWiFiClick(Sender: TObject);
+var
+  device: string;
+begin
+  device := TWiFiConfigForm.Execute(FSender);
+  if device <> '' then
+  begin
+    if CboPort.Items.IndexOf(device) < 0 then
+      CboPort.Items.Add(device);
+    CboPort.Text := device;
+  end;
 end;
 
 procedure TConnectFrame.BtnRefreshClick(Sender: TObject);

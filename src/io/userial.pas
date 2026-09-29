@@ -5,7 +5,7 @@ unit userial;
 interface
 
 uses
-  Classes, SysUtils, LazSerial, ugrblemulator;
+  Classes, SysUtils, LazSerial, ugrblemulator, blcksock, utcpdevice;
 
 type
   { TSerialLink wraps TLazSerial for blocking, poll-driven use from a
@@ -24,11 +24,19 @@ type
     EMULATOR_DEVICE_NAME sentinel, this class routes every call to an
     owned TGrblEmulator instead of the real TLazSerial - same public API,
     zero changes needed anywhere else in the protocol stack (usender.pas
-    only ever talks to TSerialLink, never to TLazSerial directly). }
+    only ever talks to TSerialLink, never to TLazSerial directly).
+
+    Plan Phase 21: when OpenPort's ADevice matches the TCP_DEVICE_PREFIX
+    convention ("tcp:host:port"), this class instead opens a raw TCP
+    socket (Synapse's TTCPBlockSocket - the same library TLazSerial's own
+    SynSer already wraps for real serial ports, so this needs no new
+    third-party dependency) - a third, equally transparent backend
+    alongside the real serial port and the Phase 19 emulator. }
   TSerialLink = class
   private
     FSerial: TLazSerial;
     FEmulator: TGrblEmulator; // non-nil only while "connected" to the emulator
+    FTcp: TTCPBlockSocket;    // non-nil only while "connected" via tcp:host:port
   public
     constructor Create(AOwner: TComponent);
     destructor Destroy; override;
@@ -96,11 +104,23 @@ begin
 end;
 
 procedure TSerialLink.OpenPort(const ADevice: string; ABaud: Integer);
+var
+  host: string;
+  port: Integer;
 begin
   if ADevice = EMULATOR_DEVICE_NAME then
   begin
     FreeAndNil(FEmulator);
     FEmulator := TGrblEmulator.Create;
+    Exit;
+  end;
+  if TryParseTcpDevice(ADevice, host, port) then
+  begin
+    FreeAndNil(FTcp);
+    FTcp := TTCPBlockSocket.Create;
+    FTcp.Connect(host, IntToStr(port));
+    if FTcp.LastError <> 0 then
+      FreeAndNil(FTcp); // connect failed - IsOpen correctly reports False
     Exit;
   end;
   FSerial.Device := ADevice;
@@ -111,13 +131,18 @@ end;
 procedure TSerialLink.ClosePort;
 begin
   FreeAndNil(FEmulator);
+  if FTcp <> nil then
+  begin
+    FTcp.CloseSocket;
+    FreeAndNil(FTcp);
+  end;
   if FSerial.Active then
     FSerial.Active := False;
 end;
 
 function TSerialLink.IsOpen: Boolean;
 begin
-  Result := (FEmulator <> nil) or FSerial.Active;
+  Result := (FEmulator <> nil) or (FTcp <> nil) or FSerial.Active;
 end;
 
 function TSerialLink.ReadLine(ATimeoutMs: Integer): string;
@@ -134,6 +159,11 @@ begin
       Sleep(ATimeoutMs);
     Exit;
   end;
+  if FTcp <> nil then
+  begin
+    Result := TrimRight(FTcp.RecvTerminated(ATimeoutMs, #10));
+    Exit;
+  end;
   if not FSerial.Active then
   begin
     Result := '';
@@ -147,6 +177,11 @@ begin
   if FEmulator <> nil then
   begin
     FEmulator.WriteRaw(AData);
+    Exit;
+  end;
+  if FTcp <> nil then
+  begin
+    FTcp.SendString(AData);
     Exit;
   end;
   if FSerial.Active then

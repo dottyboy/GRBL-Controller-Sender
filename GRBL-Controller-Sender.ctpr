@@ -64,6 +64,9 @@
         <PackageName Value="LazSerialPort"/>
       </Item>
       <Item>
+        <PackageName Value="pl_Synapse"/>
+      </Item>
+      <Item>
         <PackageName Value="adLCL"/>
       </Item>
       <Item>
