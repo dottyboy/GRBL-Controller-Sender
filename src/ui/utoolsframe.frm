@@ -2,20 +2,20 @@ object ToolsFrame: TToolsFrame
   Left = 0
   Height = 400
   Top = 0
-  Width = 600
+  Width = 700
   Align = alClient
   ClientHeight = 400
-  ClientWidth = 600
+  ClientWidth = 700
   TabOrder = 0
   object ToolBar: TPanel
     Left = 0
     Height = 34
     Top = 0
-    Width = 600
+    Width = 700
     Align = alTop
     BevelOuter = bvNone
     ClientHeight = 34
-    ClientWidth = 600
+    ClientWidth = 700
     TabOrder = 0
     object BtnAdd: TButton
       Left = 4
@@ -44,12 +44,38 @@ object ToolsFrame: TToolsFrame
       OnClick = BtnUseClick
       TabOrder = 2
     end
+    object CboPreset: TComboBox
+      Left = 270
+      Height = 26
+      Top = 4
+      Width = 160
+      Style = csDropDownList
+      TabOrder = 3
+    end
+    object BtnLoadPreset: TButton
+      Left = 434
+      Height = 26
+      Top = 4
+      Width = 90
+      Caption = 'Load preset'
+      OnClick = BtnLoadPresetClick
+      TabOrder = 4
+    end
+    object BtnParametric: TButton
+      Left = 528
+      Height = 26
+      Top = 4
+      Width = 130
+      Caption = 'Parametric tool...'
+      OnClick = BtnParametricClick
+      TabOrder = 5
+    end
   end
   object Grid: TStringGrid
     Left = 0
     Height = 366
     Top = 34
-    Width = 600
+    Width = 700
     Align = alClient
     ColCount = 6
     FixedRows = 1

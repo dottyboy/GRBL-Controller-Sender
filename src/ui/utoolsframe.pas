@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Math, Forms, Controls, StdCtrls, ExtCtrls, Grids, IniFiles,
-  usender;
+  usender, utoolbits, uparametrictoolform;
 
 const
   COL_NAME = 0;
@@ -25,11 +25,16 @@ type
   TToolsFrame = class(TFrame)
     BtnAdd: TButton;
     BtnDelete: TButton;
+    BtnLoadPreset: TButton;
+    BtnParametric: TButton;
     BtnUse: TButton;
+    CboPreset: TComboBox;
     Grid: TStringGrid;
     ToolBar: TPanel;
     procedure BtnAddClick(Sender: TObject);
     procedure BtnDeleteClick(Sender: TObject);
+    procedure BtnLoadPresetClick(Sender: TObject);
+    procedure BtnParametricClick(Sender: TObject);
     procedure BtnUseClick(Sender: TObject);
     procedure GridEditingDone(Sender: TObject);
   private
@@ -37,6 +42,7 @@ type
     FFileName: string;
     procedure LoadTools;
     procedure SaveTools;
+    function AddBlankRow: Integer;
   public
     constructor Create(AOwner: TComponent); override;
     procedure SetSender(ASender: TSender);
@@ -49,6 +55,8 @@ implementation
 { TToolsFrame }
 
 constructor TToolsFrame.Create(AOwner: TComponent);
+var
+  i: Integer;
 begin
   inherited Create(AOwner);
   Grid.Cells[COL_NAME, 0] := 'Name';
@@ -57,6 +65,11 @@ begin
   Grid.Cells[COL_LENGTH, 0] := 'Length';
   Grid.Cells[COL_STEPOVER, 0] := 'Stepover %';
   Grid.Cells[COL_COMMENT, 0] := 'Comment';
+
+  for i := 0 to PresetCount - 1 do
+    CboPreset.Items.Add(GetPreset(i).Name);
+  if CboPreset.Items.Count > 0 then
+    CboPreset.ItemIndex := 0;
 
   FFileName := IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'tools.ini';
   LoadTools;
@@ -134,15 +147,58 @@ begin
   end;
 end;
 
-procedure TToolsFrame.BtnAddClick(Sender: TObject);
+function TToolsFrame.AddBlankRow: Integer;
 begin
   Grid.RowCount := Grid.RowCount + 1;
-  Grid.Cells[COL_NAME, Grid.RowCount - 1] := 'New tool';
-  Grid.Cells[COL_DIAMETER, Grid.RowCount - 1] := '3.175';
-  Grid.Cells[COL_FLUTES, Grid.RowCount - 1] := '2';
-  Grid.Cells[COL_LENGTH, Grid.RowCount - 1] := '20';
-  Grid.Cells[COL_STEPOVER, Grid.RowCount - 1] := '40';
+  Result := Grid.RowCount - 1;
+  Grid.Cells[COL_NAME, Result] := 'New tool';
+  Grid.Cells[COL_DIAMETER, Result] := '3.175';
+  Grid.Cells[COL_FLUTES, Result] := '2';
+  Grid.Cells[COL_LENGTH, Result] := '20';
+  Grid.Cells[COL_STEPOVER, Result] := '40';
+end;
+
+procedure TToolsFrame.BtnAddClick(Sender: TObject);
+begin
+  AddBlankRow;
   SaveTools;
+end;
+
+procedure TToolsFrame.BtnLoadPresetClick(Sender: TObject);
+var
+  preset: TToolBitPreset;
+  row: Integer;
+begin
+  if CboPreset.ItemIndex < 0 then Exit;
+  preset := GetPreset(CboPreset.ItemIndex);
+  row := AddBlankRow;
+  Grid.Cells[COL_NAME, row] := preset.Name;
+  Grid.Cells[COL_DIAMETER, row] := FormatFloat('0.###', preset.Params.Diameter);
+  Grid.Cells[COL_LENGTH, row] := FormatFloat('0.#', preset.Params.Length);
+  Grid.Cells[COL_COMMENT, row] := DescribeToolBit(preset.Shape, preset.Params);
+  Grid.Row := row;
+  SaveTools;
+end;
+
+procedure TToolsFrame.BtnParametricClick(Sender: TObject);
+var
+  frm: TParametricToolForm;
+  row: Integer;
+begin
+  frm := TParametricToolForm.Create(Self);
+  try
+    if frm.ShowModal = mrOK then
+    begin
+      row := AddBlankRow;
+      Grid.Cells[COL_NAME, row] := frm.GetToolName;
+      Grid.Cells[COL_DIAMETER, row] := FormatFloat('0.###', frm.GetDiameter);
+      Grid.Cells[COL_COMMENT, row] := frm.GetToolComment;
+      Grid.Row := row;
+      SaveTools;
+    end;
+  finally
+    frm.Free;
+  end;
 end;
 
 procedure TToolsFrame.BtnDeleteClick(Sender: TObject);
