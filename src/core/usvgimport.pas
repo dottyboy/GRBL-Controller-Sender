@@ -37,15 +37,42 @@ type
     Points: TPolyline;   // already flattened (Beziers subdivided)
     IsFilled: Boolean;
     IsStroked: Boolean;
+    Color: TBGRAPixel;   // plan Phase 35 - the shape's own real stroke (preferred,
+                          // matching LaserGRBL's own real priority) or fill color,
+                          // already resolved by BGRA's own real fillColor/
+                          // strokeColor properties (hex/named-color/CSS-style all
+                          // handled internally, not re-parsed here).
   end;
 
   TSvgShapeArray = array of TSvgShape;
 
+  { TColorFilter: plan Phase 35 - ported directly from LaserGRBL's own real
+    `SvgConverter/GCodeFromSVG.cs` `ColorFilter` enum + `filterByColor`
+    classification (same All/Red/Green/Blue/Black set, same real 0-255
+    RGB thresholds - FilterColorLimitHLow=20/FilterColorLimitHigh=127).
+    LaserGRBL's own mechanism imports ONE filter at a time (regenerate per
+    color for a multi-pass job), not a simultaneous multi-layer panel -
+    ported exactly that, not a richer invented one. }
+  TColorFilter = (cfAll, cfRed, cfGreen, cfBlue, cfBlack);
+
 const
   N_CIRCLE_SEGMENTS = 32;
 
+  // Real thresholds from LaserGRBL's own GCodeFromSVG.cs (FilterColorLimitHLow/High).
+  COLOR_FILTER_LOW = 20;
+  COLOR_FILTER_HIGH = 127;
+
 function LoadSvgShapes(const AFileName: string; out AShapes: TSvgShapeArray;
   out AError: string): Boolean;
+
+{ ShapeMatchesColorFilter: cfAll always matches (same as LaserGRBL's own
+  `if (filter==ColorFilter.All) return true`). }
+function ShapeMatchesColorFilter(const AShape: TSvgShape; AFilter: TColorFilter): Boolean;
+
+{ FilterShapesByColor: convenience wrapper - returns the subset of AShapes
+  matching AFilter, for usvgimportframe.pas's own "Generate from SVG"
+  step to consume directly. }
+function FilterShapesByColor(const AShapes: TSvgShapeArray; AFilter: TColorFilter): TSvgShapeArray;
 
 implementation
 
@@ -60,7 +87,7 @@ begin
 end;
 
 procedure AddShapesFromPolylines(var AShapes: TSvgShapeArray; const APolys: TPolylineArray;
-  AFilled, AStroked: Boolean);
+  AFilled, AStroked: Boolean; AColor: TBGRAPixel);
 var
   i, n: Integer;
 begin
@@ -72,7 +99,20 @@ begin
     AShapes[n].Points := APolys[i];
     AShapes[n].IsFilled := AFilled;
     AShapes[n].IsStroked := AStroked;
+    AShapes[n].Color := AColor;
   end;
+end;
+
+{ ShapeColor: stroke preferred over fill, matching LaserGRBL's own real
+  priority (its getColor()/filterByColor() both check stroke first). }
+function ShapeColor(AEl: TSVGElement; AStroked, AFilled: Boolean): TBGRAPixel;
+begin
+  if AStroked then
+    Result := AEl.strokeColor
+  else if AFilled then
+    Result := AEl.fillColor
+  else
+    Result := TBGRAPixel.New(0, 0, 0);
 end;
 
 procedure WalkElement(AEl: TSVGElement; var AShapes: TSvgShapeArray); forward;
@@ -127,7 +167,7 @@ begin
   if AEl is TSVGPath then
   begin
     polys := ParseSvgPath(TSVGPath(AEl).d);
-    AddShapesFromPolylines(AShapes, polys, filled, stroked);
+    AddShapesFromPolylines(AShapes, polys, filled, stroked, ShapeColor(AEl, stroked, filled));
   end
   else if AEl is TSVGRectangle then
   begin
@@ -142,7 +182,7 @@ begin
     end;
     SetLength(polys, 1);
     polys[0] := poly;
-    AddShapesFromPolylines(AShapes, polys, filled, stroked);
+    AddShapesFromPolylines(AShapes, polys, filled, stroked, ShapeColor(AEl, stroked, filled));
   end
   else if AEl is TSVGCircle then
   begin
@@ -158,7 +198,7 @@ begin
     end;
     SetLength(polys, 1);
     polys[0] := poly;
-    AddShapesFromPolylines(AShapes, polys, filled, stroked);
+    AddShapesFromPolylines(AShapes, polys, filled, stroked, ShapeColor(AEl, stroked, filled));
   end;
   // else: a real but not-yet-handled element type (ellipse/line/polygon/
   // polyline/text/...) - deliberately skipped, disclosed above, not
@@ -198,6 +238,39 @@ begin
   finally
     svg.Free;
   end;
+end;
+
+function ShapeMatchesColorFilter(const AShape: TSvgShape; AFilter: TColorFilter): Boolean;
+var
+  r, g, b: Byte;
+begin
+  if AFilter = cfAll then Exit(True);
+  r := AShape.Color.red;
+  g := AShape.Color.green;
+  b := AShape.Color.blue;
+  case AFilter of
+    cfRed:   Result := (r >= COLOR_FILTER_HIGH) and (g <= COLOR_FILTER_LOW) and (b <= COLOR_FILTER_LOW);
+    cfGreen: Result := (r <= COLOR_FILTER_LOW) and (g > COLOR_FILTER_HIGH) and (b <= COLOR_FILTER_LOW);
+    cfBlue:  Result := (r <= COLOR_FILTER_LOW) and (g <= COLOR_FILTER_LOW) and (b > COLOR_FILTER_HIGH);
+    cfBlack: Result := (r <= COLOR_FILTER_LOW) and (g <= COLOR_FILTER_LOW) and (b <= COLOR_FILTER_LOW);
+  else
+    Result := True;
+  end;
+end;
+
+function FilterShapesByColor(const AShapes: TSvgShapeArray; AFilter: TColorFilter): TSvgShapeArray;
+var
+  i, n: Integer;
+begin
+  SetLength(Result, Length(AShapes));
+  n := 0;
+  for i := 0 to High(AShapes) do
+    if ShapeMatchesColorFilter(AShapes[i], AFilter) then
+    begin
+      Result[n] := AShapes[i];
+      Inc(n);
+    end;
+  SetLength(Result, n);
 end;
 
 end.

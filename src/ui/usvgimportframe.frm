@@ -23,8 +23,24 @@ object SvgImportFrame: TSvgImportFrame
     Width = 200
     Caption = ''
   end
-  object BtnGenerateShapes: TButton
+  object CboColorFilter: TComboBox
     Left = 340
+    Height = 28
+    Top = 12
+    Width = 110
+    Style = csDropDownList
+    ItemIndex = 0
+    Items.Strings = (
+      'All colors'
+      'Red'
+      'Green'
+      'Blue'
+      'Black'
+    )
+    TabOrder = 6
+  end
+  object BtnGenerateShapes: TButton
+    Left = 456
     Height = 28
     Top = 12
     Width = 130

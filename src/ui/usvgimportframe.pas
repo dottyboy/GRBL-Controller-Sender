@@ -34,6 +34,7 @@ type
     BtnOpenImage: TButton;
     BtnOpenSvg: TButton;
     BtnVectorize: TButton;
+    CboColorFilter: TComboBox;
     EdFeedRate: TSpinEdit;
     EdPixelSize: TFloatSpinEdit;
     EdPower: TSpinEdit;
@@ -174,9 +175,23 @@ begin
   SetStatus('', False);
 end;
 
+function ColorFilterFromComboIndex(AIndex: Integer): TColorFilter;
+begin
+  case AIndex of
+    1: Result := cfRed;
+    2: Result := cfGreen;
+    3: Result := cfBlue;
+    4: Result := cfBlack;
+  else
+    Result := cfAll;
+  end;
+end;
+
 procedure TSvgImportFrame.BtnGenerateShapesClick(Sender: TObject);
 var
   err: string;
+  filtered: TSvgShapeArray;
+  filter: TColorFilter;
 begin
   if FSvgFile = '' then
   begin
@@ -188,9 +203,15 @@ begin
     SetStatus(err, True);
     Exit;
   end;
+  filter := ColorFilterFromComboIndex(CboColorFilter.ItemIndex);
+  filtered := FilterShapesByColor(FSvgShapes, filter);
   if Assigned(FOnGenerated) then
-    FOnGenerated(ShapesToGCode(FSvgShapes));
-  SetStatus(Format('%d shapes', [Length(FSvgShapes)]), False);
+    FOnGenerated(ShapesToGCode(filtered));
+  if filter = cfAll then
+    SetStatus(Format('%d shapes', [Length(filtered)]), False)
+  else
+    SetStatus(Format('%d shapes (%s only, of %d total)',
+      [Length(filtered), CboColorFilter.Items[CboColorFilter.ItemIndex], Length(FSvgShapes)]), False);
 end;
 
 procedure TSvgImportFrame.BtnVectorizeClick(Sender: TObject);
