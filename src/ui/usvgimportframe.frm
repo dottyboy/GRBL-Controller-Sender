@@ -161,10 +161,54 @@ object SvgImportFrame: TSvgImportFrame
     TabOrder = 9
     Value = 0.2
   end
+  object CbHoldingTabs: TCheckBox
+    Left = 12
+    Height = 19
+    Top = 156
+    Width = 150
+    Caption = 'Holding tabs (cutout)'
+    TabOrder = 10
+  end
+  object LblTabCount: TLabel
+    Left = 170
+    Height = 15
+    Top = 158
+    Width = 55
+    Caption = 'Tab count'
+  end
+  object EdTabCount: TSpinEdit
+    Left = 170
+    Height = 24
+    Top = 176
+    Width = 70
+    MaxValue = 50
+    MinValue = 1
+    TabOrder = 11
+    Value = 4
+  end
+  object LblTabWidth: TLabel
+    Left = 250
+    Height = 15
+    Top = 158
+    Width = 90
+    Caption = 'Tab width (mm)'
+  end
+  object EdTabWidth: TFloatSpinEdit
+    Left = 250
+    Height = 24
+    Top = 176
+    Width = 90
+    DecimalPlaces = 2
+    Increment = 0.5
+    MaxValue = 100
+    MinValue = 0.5
+    TabOrder = 12
+    Value = 5
+  end
   object LblStatus: TLabel
     Left = 12
     Height = 15
-    Top = 156
+    Top = 210
     Width = 664
     AutoSize = False
     Caption = ''

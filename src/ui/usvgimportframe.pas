@@ -20,7 +20,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, StdCtrls, ExtCtrls, Dialogs,
-  Spin, uimageio, uvectorize, usvgimport, uautotrace, ui18n;
+  Spin, uimageio, uvectorize, usvgimport, uautotrace, uholdingtabs, ui18n;
 
 type
   TOnGenerated = procedure(const AProgramText: string) of object;
@@ -34,10 +34,13 @@ type
     BtnOpenImage: TButton;
     BtnOpenSvg: TButton;
     BtnVectorize: TButton;
+    CbHoldingTabs: TCheckBox;
     CboColorFilter: TComboBox;
     EdFeedRate: TSpinEdit;
     EdPixelSize: TFloatSpinEdit;
     EdPower: TSpinEdit;
+    EdTabCount: TSpinEdit;
+    EdTabWidth: TFloatSpinEdit;
     EdThreshold: TSpinEdit;
     LblFeedRate: TLabel;
     LblImageFile: TLabel;
@@ -45,6 +48,8 @@ type
     LblPower: TLabel;
     LblStatus: TLabel;
     LblSvgFile: TLabel;
+    LblTabCount: TLabel;
+    LblTabWidth: TLabel;
     LblThreshold: TLabel;
     procedure BtnCenterlineClick(Sender: TObject);
     procedure BtnGenerateShapesClick(Sender: TObject);
@@ -129,10 +134,14 @@ end;
 function TSvgImportFrame.PolygonsToGCode(const APolys: TPolygonArray): string;
 var
   lines: TStringList;
-  s, i: Integer;
+  s, i, j: Integer;
   scale: Double;
+  useTabs: Boolean;
+  tabPath: TTabPath;
+  segs: TTabSegmentArray;
 begin
   scale := EdPixelSize.Value;
+  useTabs := CbHoldingTabs.Checked;
   lines := TStringList.Create;
   try
     lines.Add('G21');
@@ -140,10 +149,43 @@ begin
     for s := 0 to High(APolys) do
     begin
       if Length(APolys[s]) = 0 then Continue;
-      lines.Add(Format('G0 X%s Y%s', [FmtG(APolys[s][0].X * scale), FmtG(APolys[s][0].Y * scale)]));
-      lines.Add(Format('M3 S%d', [EdPower.Value]));
-      for i := 1 to High(APolys[s]) do
-        lines.Add(Format('G1 X%s Y%s F%d', [FmtG(APolys[s][i].X * scale), FmtG(APolys[s][i].Y * scale), EdFeedRate.Value]));
+
+      if not useTabs then
+      begin
+        lines.Add(Format('G0 X%s Y%s', [FmtG(APolys[s][0].X * scale), FmtG(APolys[s][0].Y * scale)]));
+        lines.Add(Format('M3 S%d', [EdPower.Value]));
+        for i := 1 to High(APolys[s]) do
+          lines.Add(Format('G1 X%s Y%s F%d', [FmtG(APolys[s][i].X * scale), FmtG(APolys[s][i].Y * scale), EdFeedRate.Value]));
+        lines.Add('M5');
+        Continue;
+      end;
+
+      // Plan Phase 36 - holding tabs: leave small uncut bridges around the
+      // cutout so the freed piece doesn't come loose before the job
+      // finishes. This frame has no Z axis at all (a pure 2D laser
+      // pipeline) - so a "tab" here means briefly turning the laser OFF
+      // (M5) instead of retracting Z, the same physical effect (an
+      // uncut bridge) via the mechanism this specific pipeline actually
+      // has, not the Z-lift a CNC mill would use for the same concept.
+      SetLength(tabPath, Length(APolys[s]));
+      for i := 0 to High(APolys[s]) do
+      begin
+        tabPath[i].X := APolys[s][i].X * scale;
+        tabPath[i].Y := APolys[s][i].Y * scale;
+      end;
+      segs := SplitPathWithTabs(tabPath, EdTabCount.Value, EdTabWidth.Value);
+      if Length(segs) = 0 then Continue;
+
+      lines.Add(Format('G0 X%s Y%s', [FmtG(segs[0].Points[0].X), FmtG(segs[0].Points[0].Y)]));
+      for i := 0 to High(segs) do
+      begin
+        if segs[i].IsTab then
+          lines.Add('M5')
+        else
+          lines.Add(Format('M3 S%d', [EdPower.Value]));
+        for j := 1 to High(segs[i].Points) do
+          lines.Add(Format('G1 X%s Y%s F%d', [FmtG(segs[i].Points[j].X), FmtG(segs[i].Points[j].Y), EdFeedRate.Value]));
+      end;
       lines.Add('M5');
     end;
     Result := lines.Text;
