@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..241] of array[0..2] of string = (
+  Catalog: array[0..260] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -241,5 +241,24 @@ const
     ('Template loaded: %s - review, then Apply', 'Predložak učitan: %s - pregledaj, pa primijeni', 'Vorlage geladen: %s - prüfen, dann anwenden'),
     ('Machine', 'Stroj', 'Maschine'),
     ('Laser', 'Laser', 'Laser'),
-    ('Settings && Tools', 'Postavke && alati', 'Einstellungen && Werkzeuge')
+    ('Settings && Tools', 'Postavke && alati', 'Einstellungen && Werkzeuge'),
+    ('Gerber Import', 'Uvoz Gerber datoteke', 'Gerber-Import'),
+    ('Open Gerber...', 'Otvori Gerber...', 'Gerber öffnen...'),
+    ('Tool diameter (mm)', 'Promjer alata (mm)', 'Werkzeugdurchmesser (mm)'),
+    ('Isolation gap (mm)', 'Izolacijski razmak (mm)', 'Isolationsabstand (mm)'),
+    ('Passes', 'Prolazi', 'Durchgänge'),
+    ('Pass stepover (mm)', 'Korak prolaza (mm)', 'Zeilenversatz (mm)'),
+    ('Cut depth (mm)', 'Dubina rezanja (mm)', 'Frästiefe (mm)'),
+    ('Depth per pass (mm)', 'Dubina po prolazu (mm)', 'Tiefe pro Durchgang (mm)'),
+    ('Safe Z (mm)', 'Sigurna Z (mm)', 'Sichere Z-Höhe (mm)'),
+    ('Feed rate (mm/min)', 'Posmak (mm/min)', 'Vorschub (mm/min)'),
+    ('Plunge rate (mm/min)', 'Brzina uranjanja (mm/min)', 'Eintauchgeschwindigkeit (mm/min)'),
+    ('Spindle RPM (0=off)', 'Okretaji vretena (0=isklj.)', 'Spindeldrehzahl (0=aus)'),
+    ('Generate G-Code', 'Generiraj G-kod', 'G-Code generieren'),
+    ('Open a Gerber file first.', 'Prvo otvori Gerber datoteku.', 'Zuerst eine Gerber-Datei öffnen.'),
+    ('Could not read file: %s', 'Datoteku nije moguće pročitati: %s', 'Datei konnte nicht gelesen werden: %s'),
+    ('Gerber parse failed - see warnings.', 'Obrada Gerber datoteke nije uspjela - pogledaj upozorenja.', 'Gerber-Datei konnte nicht verarbeitet werden - siehe Warnungen.'),
+    ('No copper found - nothing to isolate.', 'Bakar nije pronađen - nema što izolirati.', 'Kein Kupfer gefunden - nichts zu isolieren.'),
+    ('%d isolation rings generated.', 'Generirano %d izolacijskih prstenova.', '%d Isolationsringe erzeugt.'),
+    ('%d isolation rings, %d parser warnings (see file for detail).', 'Generirano %d izolacijskih prstenova, %d upozorenja (detalji u datoteci).', '%d Isolationsringe, %d Warnungen (Details in der Datei).')
   );

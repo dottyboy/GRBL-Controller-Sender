@@ -6,20 +6,23 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ComCtrls, Menus,
-  usender, uappconfig, ugcode, uconnectframe, udroframe, ujogframe,
-  uterminalframe, ueditorframe, usettingsform, uopengl3dframe,
-  uprobeframe, utoolsframe, usettingsgridframe, ufluidncframe,
-  ufirmwarebuilderframe, uspoilboardframe, ui18n, ui18ncontrols, uhotkeys,
-  ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
-  umaterialpresetframe, ucustombuttonframe, urasterimportframe,
-  usvgimportframe, uhotkeysframe, ulasertestgenframe, ulaserusage,
-  ulaserusagestore, ulaserusageform, usincrostart, uaxiscalibrationform;
+  StdCtrls, TplStatusBarExUnit, TplProgressBarUnit, rxclock, usender,
+  uappconfig, ugcode, uconnectframe, udroframe, ujogframe, uterminalframe,
+  ueditorframe, usettingsform, uopengl3dframe, uprobeframe, utoolsframe,
+  usettingsgridframe, ufluidncframe, ufirmwarebuilderframe, uspoilboardframe,
+  ui18n, ui18ncontrols, uhotkeys, ustatebuilder, uresumejobform,
+  ulasercontrolframe, umaterialpreset, umaterialpresetframe, ucustombuttonframe,
+  urasterimportframe, usvgimportframe, uhotkeysframe, ulasertestgenframe,
+  ulaserusage, ulaserusagestore, ulaserusageform, usincrostart,
+  uaxiscalibrationform, ugerberimportframe;
 
 type
 
-  { TForm1 }
+  { TMainForm }
 
-  TForm1 = class(TForm)
+  TMainForm = class(TForm)
+    JobProgress: TProgressBar;
+    JobStatusText: TLabel;
     MainMenu1: TMainMenu;
     MenuFile: TMenuItem;
     MenuFileExit: TMenuItem;
@@ -31,6 +34,9 @@ type
     MenuLangEN: TMenuItem;
     MenuLangHR: TMenuItem;
     MenuLangDE: TMenuItem;
+    plStatusBarEx1: TplStatusBarEx;
+    ProgressBar1: TProgressBar;
+    RxClock1: TRxClock;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -71,6 +77,7 @@ type
     TabFluidNC: TTabSheet;
     TabFirmwareBuilder: TTabSheet;
     TabSpoilboard: TTabSheet;
+    TabGerberImport: TTabSheet;
     TabRasterImport: TTabSheet;
     TabSvgImport: TTabSheet;
     TabLaserTestGen: TTabSheet;
@@ -91,6 +98,7 @@ type
     FluidNCFrame: TFluidNCFrame;
     FirmwareBuilderFrame: TFirmwareBuilderFrame;
     SpoilboardFrame: TSpoilboardFrame;
+    GerberImportFrame: TGerberImportFrame;
     RasterImportFrame: TRasterImportFrame;
     SvgImportFrame: TSvgImportFrame;
     LaserTestGenFrame: TLaserTestGenFrame;
@@ -119,6 +127,7 @@ type
     procedure CaptureConnectionDefaults;
     procedure View3DRequestParse(Sender: TObject);
     procedure SpoilboardGenerated(const AProgramText: string);
+    procedure GerberImportGenerated(const AProgramText: string);
     procedure RasterGenerated(const AProgramText: string);
     procedure SvgGenerated(const AProgramText: string);
     procedure LaserTestGenGenerated(const AProgramText: string);
@@ -136,15 +145,15 @@ type
   end;
 
 var
-  Form1: TForm1;
+  MainForm: TMainForm;
 
 implementation
 
 {$R *.frm}
 
-{ TForm1 }
+{ TMainForm }
 
-procedure TForm1.FormCreate(Sender: TObject);
+procedure TMainForm.FormCreate(Sender: TObject);
 begin
   FSender := TSender.Create;
   FSender.OnLog := @SenderLog;
@@ -216,6 +225,9 @@ begin
 
   TabSpoilboard := PagesMachine.AddTabSheet;
   TabSpoilboard.Caption := 'Spoilboard';
+
+  TabGerberImport := PagesMachine.AddTabSheet;
+  TabGerberImport.Caption := 'Gerber Import';
 
   TabTerminal := PagesMachine.AddTabSheet;
   TabTerminal.Caption := 'Terminal';
@@ -300,6 +312,14 @@ begin
   SpoilboardFrame.Parent := TabSpoilboard;
   SpoilboardFrame.OnGenerated := @SpoilboardGenerated;
 
+  // Plan Phase 33: CNC-milling-only (isolation routing needs a real tool
+  // diameter/Z-depth, no laser equivalent), so it lives in the Machine
+  // group alongside Spoilboard - same reasoning as that tab's own
+  // placement in the reorg.
+  GerberImportFrame := TGerberImportFrame.Create(TabGerberImport);
+  GerberImportFrame.Parent := TabGerberImport;
+  GerberImportFrame.OnGenerated := @GerberImportGenerated;
+
   RasterImportFrame := TRasterImportFrame.Create(TabRasterImport);
   RasterImportFrame.Parent := TabRasterImport;
   RasterImportFrame.OnGenerated := @RasterGenerated;
@@ -366,7 +386,7 @@ begin
     @SincroStartMessageReceived);
 end;
 
-procedure TForm1.ApplyConnectionDefaults;
+procedure TMainForm.ApplyConnectionDefaults;
 begin
   if FAppConfig.LastPort <> '' then
     ConnectFrame.CboPort.Text := FAppConfig.LastPort;
@@ -376,14 +396,14 @@ begin
     ConnectFrame.CboController.ItemIndex := FAppConfig.LastControllerIndex;
 end;
 
-procedure TForm1.CaptureConnectionDefaults;
+procedure TMainForm.CaptureConnectionDefaults;
 begin
   FAppConfig.LastPort := ConnectFrame.CboPort.Text;
   FAppConfig.LastBaud := StrToIntDef(ConnectFrame.CboBaud.Text, 115200);
   FAppConfig.LastControllerIndex := ConnectFrame.CboController.ItemIndex;
 end;
 
-procedure TForm1.FormDestroy(Sender: TObject);
+procedure TMainForm.FormDestroy(Sender: TObject);
 begin
   FSincroStart.Free; // stops the listener thread (TSincroStartListener.Destroy calls StopListening)
   CaptureConnectionDefaults;
@@ -405,7 +425,7 @@ begin
   FSender.Free;
 end;
 
-procedure TForm1.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+procedure TMainForm.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 var
   hkAction: THotkeyAction;
   stepXY, stepZ: Double;
@@ -458,7 +478,7 @@ begin
   Key := 0; // handled - don't also deliver it to whatever control has focus
 end;
 
-procedure TForm1.View3DRequestParse(Sender: TObject);
+procedure TMainForm.View3DRequestParse(Sender: TObject);
 begin
   FGCodeParser.ParseLines(EditorFrame.SynEditor.Lines);
   View3DFrame.SetSegments(FGCodeParser.Segments, FGCodeParser.Count,
@@ -467,7 +487,7 @@ begin
     FGCodeParser.MaxPower);
 end;
 
-procedure TForm1.SpoilboardGenerated(const AProgramText: string);
+procedure TMainForm.SpoilboardGenerated(const AProgramText: string);
 begin
   // Loads into the editor exactly like opening a file by hand would - the
   // user reviews/edits/saves/sends it from there, this frame never touches
@@ -478,21 +498,28 @@ begin
   ActivateTab(TabView3D);
 end;
 
-procedure TForm1.RasterGenerated(const AProgramText: string);
+procedure TMainForm.GerberImportGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
   ActivateTab(TabView3D);
 end;
 
-procedure TForm1.SvgGenerated(const AProgramText: string);
+procedure TMainForm.RasterGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
   ActivateTab(TabView3D);
 end;
 
-procedure TForm1.LaserTestGenGenerated(const AProgramText: string);
+procedure TMainForm.SvgGenerated(const AProgramText: string);
+begin
+  EditorFrame.LoadGeneratedText(AProgramText);
+  View3DRequestParse(Self);
+  ActivateTab(TabView3D);
+end;
+
+procedure TMainForm.LaserTestGenGenerated(const AProgramText: string);
 begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
@@ -504,7 +531,7 @@ end;
 // matches FLaserUsageActiveGuid - falls back to the first counter if the
 // guid isn't found (e.g. it was deleted via the Laser Usage dialog while
 // it happened to still be marked active, or a fresh/corrupt store).
-procedure TForm1.ApplyActiveLaserUsage;
+procedure TMainForm.ApplyActiveLaserUsage;
 var
   i: Integer;
 begin
@@ -523,7 +550,7 @@ end;
 // worker-thread-accumulated stats back into FLaserUsageCounters, so nothing
 // ticked since the dialog was last opened (or since startup) gets lost
 // when the list is next shown or saved.
-procedure TForm1.StoreActiveLaserUsage;
+procedure TMainForm.StoreActiveLaserUsage;
 var
   i: Integer;
 begin
@@ -541,7 +568,7 @@ end;
 // extended IMPORT_SVG/IMPORT_RASTER tags (see usincrostart.pas's own
 // header for why/how). Called via Synchronize from the listener thread,
 // so this runs safely on the main thread just like any button click.
-procedure TForm1.SincroStartMessageReceived(const AMsg: TSincroStartMessage);
+procedure TMainForm.SincroStartMessageReceived(const AMsg: TSincroStartMessage);
 begin
   case AMsg.Kind of
     sskStart:
@@ -575,19 +602,19 @@ begin
   end;
 end;
 
-procedure TForm1.MenuToolsLaserUsageClick(Sender: TObject);
+procedure TMainForm.MenuToolsLaserUsageClick(Sender: TObject);
 begin
   StoreActiveLaserUsage;
   TLaserUsageForm.Execute(FLaserUsageCounters, FLaserUsageActiveGuid);
   ApplyActiveLaserUsage;
 end;
 
-procedure TForm1.MenuToolsAxisCalibrationClick(Sender: TObject);
+procedure TMainForm.MenuToolsAxisCalibrationClick(Sender: TObject);
 begin
   TAxisCalibrationForm.Execute(FSender);
 end;
 
-procedure TForm1.MaterialPresetApply(const APreset: TMaterialPreset);
+procedure TMainForm.MaterialPresetApply(const APreset: TMaterialPreset);
 begin
   // Not gated on TabLaserControl.TabVisible (whether SupportLaserMode is
   // known True yet) - ApplyMaterialPreset only touches the frame's own
@@ -598,12 +625,12 @@ begin
   ActivateTab(TabLaserControl);
 end;
 
-procedure TForm1.EditMacrosRequested(Sender: TObject);
+procedure TMainForm.EditMacrosRequested(Sender: TObject);
 begin
   ActivateTab(TabMacros);
 end;
 
-procedure TForm1.ActivateTab(ATab: TTabSheet);
+procedure TMainForm.ActivateTab(ATab: TTabSheet);
 begin
   if (ATab = nil) or (ATab.PageControl = nil) then Exit;
   // ATab.PageControl is one of PagesMachine/PagesLaser/PagesSettings, and
@@ -616,7 +643,7 @@ begin
   ATab.PageControl.ActivePage := ATab;
 end;
 
-procedure TForm1.PagesChange(Sender: TObject);
+procedure TMainForm.PagesChange(Sender: TObject);
 begin
   // Picks up edits made on the Macros tab the moment the user switches back
   // to Laser Control - reactive-refresh, same reasoning as RefreshState's
@@ -626,12 +653,12 @@ begin
     LaserControlFrame.RefreshMacroButtons;
 end;
 
-procedure TForm1.MenuFileExitClick(Sender: TObject);
+procedure TMainForm.MenuFileExitClick(Sender: TObject);
 begin
   Close;
 end;
 
-procedure TForm1.MenuLangClick(Sender: TObject);
+procedure TMainForm.MenuLangClick(Sender: TObject);
 var
   newLang: TAppLanguage;
 begin
@@ -647,7 +674,7 @@ begin
   TranslateMenu(MainMenu1.Items);
 end;
 
-procedure TForm1.MenuToolsSettingsClick(Sender: TObject);
+procedure TMainForm.MenuToolsSettingsClick(Sender: TObject);
 var
   dlg: TSettingsForm;
 begin
@@ -664,7 +691,7 @@ begin
   end;
 end;
 
-procedure TForm1.SenderLog(Sender: TObject; const ALine: string; IsError: Boolean);
+procedure TMainForm.SenderLog(Sender: TObject; const ALine: string; IsError: Boolean);
 begin
   TerminalFrame.AppendLine(ALine, IsError);
   // FluidNC doesn't fail a config.yaml upload on a bad key - it just logs
@@ -674,7 +701,7 @@ begin
     FluidNCFrame.ReportIgnoredKey(ALine);
 end;
 
-procedure TForm1.SenderStateChanged(Sender: TObject);
+procedure TMainForm.SenderStateChanged(Sender: TObject);
 var
   progress: TLaserJobProgress;
   isAlarm: Boolean;
@@ -722,7 +749,7 @@ begin
     FAlarmDialogArmed := False;
 end;
 
-procedure TForm1.OfferLaserResume;
+procedure TMainForm.OfferLaserResume;
 var
   progress: TLaserJobProgress;
   cause: string;

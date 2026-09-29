@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="12"/>
+    <Version Value="13"/>
     <General>
       <Flags>
         <MainUnitHasCreateFormStatements Value="False"/>
@@ -52,6 +52,15 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="pl_FZcontrols"/>
+      </Item>
+      <Item>
+        <PackageName Value="pl_RX"/>
+      </Item>
+      <Item>
+        <PackageName Value="pl_ExControls"/>
+      </Item>
+      <Item>
         <PackageName Value="pl_BGRAbitmap"/>
       </Item>
       <Item>
@@ -67,6 +76,9 @@
         <PackageName Value="pl_Synapse"/>
       </Item>
       <Item>
+        <PackageName Value="pl_Image32"/>
+      </Item>
+      <Item>
         <PackageName Value="adLCL"/>
       </Item>
       <Item>
@@ -80,8 +92,9 @@
       </Unit>
       <Unit>
         <Filename Value="src/umain.pas"/>
+        <FRMtype Value="200"/>
         <IsPartOfProject Value="True"/>
-        <ComponentName Value="Form1"/>
+        <ComponentName Value="MainForm"/>
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
       </Unit>
@@ -147,6 +160,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/uconnectframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="ConnectFrame"/>
         <HasResources Value="True"/>
@@ -154,6 +168,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/udroframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="DROFrame"/>
         <HasResources Value="True"/>
@@ -161,6 +176,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/ujogframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="JogFrame"/>
         <HasResources Value="True"/>
@@ -168,6 +184,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/uterminalframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="TerminalFrame"/>
         <HasResources Value="True"/>
@@ -175,6 +192,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/ueditorframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="EditorFrame"/>
         <HasResources Value="True"/>
@@ -182,6 +200,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/usettingsform.pas"/>
+        <FRMtype Value="200"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="SettingsForm"/>
         <HasResources Value="True"/>
@@ -189,6 +208,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/uopengl3dframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="OpenGL3DFrame"/>
         <HasResources Value="True"/>
@@ -196,6 +216,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/uprobeframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="ProbeFrame"/>
         <HasResources Value="True"/>
@@ -203,6 +224,7 @@
       </Unit>
       <Unit>
         <Filename Value="src/ui/utoolsframe.pas"/>
+        <FRMtype Value="400"/>
         <IsPartOfProject Value="True"/>
         <ComponentName Value="ToolsFrame"/>
         <HasResources Value="True"/>
