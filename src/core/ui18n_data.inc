@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..260] of array[0..2] of string = (
+  Catalog: array[0..268] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -260,5 +260,13 @@ const
     ('Gerber parse failed - see warnings.', 'Obrada Gerber datoteke nije uspjela - pogledaj upozorenja.', 'Gerber-Datei konnte nicht verarbeitet werden - siehe Warnungen.'),
     ('No copper found - nothing to isolate.', 'Bakar nije pronađen - nema što izolirati.', 'Kein Kupfer gefunden - nichts zu isolieren.'),
     ('%d isolation rings generated.', 'Generirano %d izolacijskih prstenova.', '%d Isolationsringe erzeugt.'),
-    ('%d isolation rings, %d parser warnings (see file for detail).', 'Generirano %d izolacijskih prstenova, %d upozorenja (detalji u datoteci).', '%d Isolationsringe, %d Warnungen (Details in der Datei).')
+    ('%d isolation rings, %d parser warnings (see file for detail).', 'Generirano %d izolacijskih prstenova, %d upozorenja (detalji u datoteci).', '%d Isolationsringe, %d Warnungen (Details in der Datei).'),
+    ('Tool', 'Alat', 'Werkzeug'),
+    ('Strategy', 'Strategija', 'Strategie'),
+    ('Laser power (S)', 'Snaga lasera (S)', 'Laserleistung (S)'),
+    ('Draw is CNC-only - switched to Isolate for laser output.', 'Crtanje je moguće samo s CNC-om - prebačeno na izoliranje za laserski izlaz.', 'Zeichnen ist nur mit CNC möglich - für Laserausgabe auf Isolieren umgeschaltet.'),
+    ('Draw is CNC-only - switched to CNC output.', 'Crtanje je moguće samo s CNC-om - prebačeno na CNC izlaz.', 'Zeichnen ist nur mit CNC möglich - auf CNC-Ausgabe umgeschaltet.'),
+    ('No copper found - nothing to draw.', 'Bakar nije pronađen - nema što crtati.', 'Kein Kupfer gefunden - nichts zu zeichnen.'),
+    ('%d drawn shapes generated.', 'Generirano %d nacrtanih oblika.', '%d gezeichnete Formen erzeugt.'),
+    ('%d drawn shapes, %d parser warnings (see file for detail).', 'Generirano %d nacrtanih oblika, %d upozorenja (detalji u datoteci).', '%d gezeichnete Formen, %d Warnungen (Details in der Datei).')
   );
