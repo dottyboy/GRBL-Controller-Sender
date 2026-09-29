@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=grbl_sender_bridge
+X-Python-2-Compatible=false
+Name=GRBL Sender Bridge
+Comment=Send the active document to GRBL Controller Sender's Raster Import tab

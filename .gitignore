@@ -10,6 +10,7 @@ backup/
 *.dbg
 GRBL-Controller-Sender
 *.exe
+__pycache__/
 
 # Personal editor/IDE config - not shared project config, machine-specific.
 .vscode/
@@ -17,5 +18,11 @@ GRBL-Controller-Sender
 # reference-only clones of forked upstream projects, not part of this project's own repo
 References/
 
-# third-party build tooling binaries, not part of this project's own repo
-tools/
+# third-party build tooling binaries, not part of this project's own repo -
+# tools/* (not tools/) so the exceptions below (this project's OWN bridge
+# plugin source, Phases 27-30) can still be tracked
+tools/*
+!tools/inkscape-extension/
+!tools/gimp-plugin/
+!tools/krita-plugin/
+!tools/qcad-plugin/

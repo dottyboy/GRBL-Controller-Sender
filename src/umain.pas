@@ -504,10 +504,16 @@ end;
 // so this runs safely on the main thread just like any button click.
 procedure TForm1.SincroStartMessageReceived(const AMsg: TSincroStartMessage);
 begin
-  if not FSender.Connected then Exit;
   case AMsg.Kind of
     sskStart:
       begin
+        // Only sskStart needs a live connection - it drives the machine.
+        // sskImportSvg/sskImportRaster (Phases 27-30's bridge plugins) are
+        // pure "load this artwork into the import tab" actions, same as
+        // File > Open, and must work before the user has even connected -
+        // gating them on Connected here would make every design-then-
+        // connect workflow silently drop the very first import.
+        if not FSender.Connected then Exit;
         if not FSender.LaserJobProgress.Active then
           LaserControlFrame.BtnStartClick(Self)
         else if FSender.State.StateStr = 'Hold' then
@@ -516,9 +522,17 @@ begin
           FSender.FeedHold;
       end;
     sskImportSvg:
-      if FileExists(AMsg.Path) then SvgImportFrame.ImportFile(AMsg.Path);
+      if FileExists(AMsg.Path) then
+      begin
+        SvgImportFrame.ImportFile(AMsg.Path);
+        Pages.ActivePage := TabSvgImport;
+      end;
     sskImportRaster:
-      if FileExists(AMsg.Path) then RasterImportFrame.ImportFile(AMsg.Path);
+      if FileExists(AMsg.Path) then
+      begin
+        RasterImportFrame.ImportFile(AMsg.Path);
+        Pages.ActivePage := TabRasterImport;
+      end;
   end;
 end;
 
