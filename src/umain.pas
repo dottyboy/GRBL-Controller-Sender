@@ -13,7 +13,7 @@ uses
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
   umaterialpresetframe, ucustombuttonframe, urasterimportframe,
   usvgimportframe, uhotkeysframe, ulasertestgenframe, ulaserusage,
-  ulaserusagestore, ulaserusageform;
+  ulaserusagestore, ulaserusageform, usincrostart;
 
 type
 
@@ -44,6 +44,7 @@ type
     FLaserUsageStore: TLaserUsageStore;
     FLaserUsageCounters: TLaserUsageCounterArray;
     FLaserUsageActiveGuid: string;
+    FSincroStart: TSincroStartListener;
     FGCodeParser: TGCodeParser;
     Pages: TPageControl;
     TabControl: TTabSheet;
@@ -108,6 +109,7 @@ type
     procedure LaserTestGenGenerated(const AProgramText: string);
     procedure ApplyActiveLaserUsage;
     procedure StoreActiveLaserUsage;
+    procedure SincroStartMessageReceived(const AMsg: TSincroStartMessage);
   public
 
   end;
@@ -313,6 +315,14 @@ begin
   end;
   TranslateControls(Self);
   TranslateMenu(MainMenu1.Items);
+
+  // Plan Phase 22: SincroStart - external "start the loaded job" trigger
+  // via a named FIFO, started last (after every frame it might dispatch
+  // to already exists).
+  FSincroStart := TSincroStartListener.Create;
+  FSincroStart.StartListening(
+    IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'sincrostart.fifo',
+    @SincroStartMessageReceived);
 end;
 
 procedure TForm1.ApplyConnectionDefaults;
@@ -334,6 +344,7 @@ end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
+  FSincroStart.Free; // stops the listener thread (TSincroStartListener.Destroy calls StopListening)
   CaptureConnectionDefaults;
   FAppConfig.Save(FSender.State);
   FAppConfig.Free;
@@ -481,6 +492,32 @@ begin
       FLaserUsageCounters[i] := FSender.LaserUsage;
       Exit;
     end;
+end;
+
+// SincroStartMessageReceived: mirrors LaserGRBL's real SincroStart.cs
+// 3-way priority (CanSendFile->RunProgram / CanResumeHold->Resume /
+// CanFeedHold->FeedHold) for the "START" tag, plus this project's own
+// extended IMPORT_SVG/IMPORT_RASTER tags (see usincrostart.pas's own
+// header for why/how). Called via Synchronize from the listener thread,
+// so this runs safely on the main thread just like any button click.
+procedure TForm1.SincroStartMessageReceived(const AMsg: TSincroStartMessage);
+begin
+  if not FSender.Connected then Exit;
+  case AMsg.Kind of
+    sskStart:
+      begin
+        if not FSender.LaserJobProgress.Active then
+          LaserControlFrame.BtnStartClick(Self)
+        else if FSender.State.StateStr = 'Hold' then
+          FSender.Resume
+        else
+          FSender.FeedHold;
+      end;
+    sskImportSvg:
+      if FileExists(AMsg.Path) then SvgImportFrame.ImportFile(AMsg.Path);
+    sskImportRaster:
+      if FileExists(AMsg.Path) then RasterImportFrame.ImportFile(AMsg.Path);
+  end;
 end;
 
 procedure TForm1.MenuToolsLaserUsageClick(Sender: TObject);

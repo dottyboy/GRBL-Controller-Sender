@@ -62,6 +62,11 @@ type
     function PolygonsToGCode(const APolys: TPolygonArray): string;
   public
     constructor Create(AOwner: TComponent); override;
+    // ImportFile: plan Phase 22 (SincroStart's IMPORT_SVG:<path> message) -
+    // programmatic equivalent of "Open SVG..." followed by "Generate from
+    // SVG", for a caller (umain.pas) that already has a path in hand and
+    // isn't going through the Open-file dialog.
+    procedure ImportFile(const AFileName: string);
     property OnGenerated: TOnGenerated read FOnGenerated write FOnGenerated;
   end;
 
@@ -144,6 +149,13 @@ begin
   finally
     lines.Free;
   end;
+end;
+
+procedure TSvgImportFrame.ImportFile(const AFileName: string);
+begin
+  FSvgFile := AFileName;
+  LblSvgFile.Caption := ExtractFileName(FSvgFile);
+  BtnGenerateShapesClick(Self);
 end;
 
 procedure TSvgImportFrame.BtnOpenSvgClick(Sender: TObject);

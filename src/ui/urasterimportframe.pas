@@ -52,6 +52,11 @@ type
     procedure UpdateEnabledState;
   public
     constructor Create(AOwner: TComponent); override;
+    // ImportFile: plan Phase 22 (SincroStart's IMPORT_RASTER:<path>
+    // message) - programmatic equivalent of "Open Image..." followed by
+    // "Generate", for a caller (umain.pas) that already has a path in
+    // hand and isn't going through the Open-file dialog.
+    procedure ImportFile(const AFileName: string);
     property OnGenerated: TOnGenerated read FOnGenerated write FOnGenerated;
   end;
 
@@ -113,6 +118,13 @@ end;
 procedure TRasterImportFrame.CboToolModeChange(Sender: TObject);
 begin
   UpdateEnabledState;
+end;
+
+procedure TRasterImportFrame.ImportFile(const AFileName: string);
+begin
+  FLoadedFile := AFileName;
+  LblFile.Caption := ExtractFileName(FLoadedFile);
+  BtnGenerateClick(Self);
 end;
 
 procedure TRasterImportFrame.BtnOpenClick(Sender: TObject);
