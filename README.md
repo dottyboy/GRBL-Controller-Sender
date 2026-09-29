@@ -109,7 +109,7 @@ equally well, but this is the only combination actually exercised:
 - `src/ui/` — one `TFrame` (paired `.pas`+`.frm`) per tab/dialog.
 - `packages/TLazSerial/` — vendored serial-port LCL component.
 - `tools/` — optional bridge plugins for external design tools
-  (Inkscape, GIMP 3.0, Krita, QCAD), each a small plain-file
+  (Inkscape, GIMP 3.0, Krita, QCAD, FreeCAD), each a small plain-file
   extension/plugin you install into that program yourself (not built by
   the main app). Each sends its export straight into this app's SVG or
   Raster Import tab over the same Unix-FIFO trigger the app's own
