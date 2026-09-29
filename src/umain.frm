@@ -33,6 +33,10 @@ object Form1: TForm1
         Caption = '&Laser Usage...'
         OnClick = MenuToolsLaserUsageClick
       end
+      object MenuToolsAxisCalibration: TMenuItem
+        Caption = '&Axis Calibration...'
+        OnClick = MenuToolsAxisCalibrationClick
+      end
     end
     object MenuLanguage: TMenuItem
       Caption = '&Language'

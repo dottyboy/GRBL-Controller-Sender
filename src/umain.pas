@@ -13,7 +13,7 @@ uses
   ustatebuilder, uresumejobform, ulasercontrolframe, umaterialpreset,
   umaterialpresetframe, ucustombuttonframe, urasterimportframe,
   usvgimportframe, uhotkeysframe, ulasertestgenframe, ulaserusage,
-  ulaserusagestore, ulaserusageform, usincrostart;
+  ulaserusagestore, ulaserusageform, usincrostart, uaxiscalibrationform;
 
 type
 
@@ -26,6 +26,7 @@ type
     MenuTools: TMenuItem;
     MenuToolsSettings: TMenuItem;
     MenuToolsLaserUsage: TMenuItem;
+    MenuToolsAxisCalibration: TMenuItem;
     MenuLanguage: TMenuItem;
     MenuLangEN: TMenuItem;
     MenuLangHR: TMenuItem;
@@ -36,6 +37,7 @@ type
     procedure MenuFileExitClick(Sender: TObject);
     procedure MenuToolsSettingsClick(Sender: TObject);
     procedure MenuToolsLaserUsageClick(Sender: TObject);
+    procedure MenuToolsAxisCalibrationClick(Sender: TObject);
     procedure MenuLangClick(Sender: TObject);
   private
     FSender: TSender;
@@ -525,6 +527,11 @@ begin
   StoreActiveLaserUsage;
   TLaserUsageForm.Execute(FLaserUsageCounters, FLaserUsageActiveGuid);
   ApplyActiveLaserUsage;
+end;
+
+procedure TForm1.MenuToolsAxisCalibrationClick(Sender: TObject);
+begin
+  TAxisCalibrationForm.Execute(FSender);
 end;
 
 procedure TForm1.MaterialPresetApply(const APreset: TMaterialPreset);

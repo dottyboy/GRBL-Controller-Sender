@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..225] of array[0..2] of string = (
+  Catalog: array[0..236] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -225,5 +225,16 @@ const
     ('Add Button', 'Dodaj gumb', 'Schaltfläche hinzufügen'),
     ('Each button enqueues its g-code when clicked on the Laser Control tab.', 'Svaki gumb postavlja svoj g-kod u red kad se klikne na kartici Upravljanje laserom.', 'Jede Schaltfläche reiht ihren G-Code ein, wenn sie im Tab Lasersteuerung angeklickt wird.'),
     ('Macros', 'Makroi', 'Makros'),
-    ('Edit Macros...', 'Uredi makroe...', 'Makros bearbeiten...')
+    ('Edit Macros...', 'Uredi makroe...', 'Makros bearbeiten...'),
+    ('&Axis Calibration...', '&Kalibracija osi...', '&Achsenkalibrierung...'),
+    ('Axis Calibration', 'Kalibracija osi', 'Achsenkalibrierung'),
+    ('Current steps/mm:', 'Trenutni koraci/mm:', 'Aktuelle Schritte/mm:'),
+    ('Distance to jog (mm):', 'Udaljenost pomaka (mm):', 'Verfahrweg (mm):'),
+    ('Jog +', 'Pomakni +', 'Verfahren +'),
+    ('Measured actual distance (mm):', 'Izmjerena stvarna udaljenost (mm):', 'Gemessene tatsächliche Strecke (mm):'),
+    ('Apply to Grbl Config', 'Primijeni na Grbl konfiguraciju', 'Auf Grbl-Konfiguration anwenden'),
+    ('Current $%s = %s', 'Trenutno $%s = %s', 'Aktuell $%s = %s'),
+    ('No settings loaded yet - is the board connected?', 'Postavke još nisu učitane - je li pločica spojena?', 'Noch keine Einstellungen geladen - ist die Steuerung verbunden?'),
+    ('Jogged %s%s - now measure the actual distance moved', 'Pomak izvršen %s%s - sada izmjeri stvarno prijeđenu udaljenost', 'Verfahren %s%s - jetzt die tatsächlich zurückgelegte Strecke messen'),
+    ('Applied: $%s = %s', 'Primijenjeno: $%s = %s', 'Angewendet: $%s = %s')
   );

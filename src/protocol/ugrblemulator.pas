@@ -75,6 +75,13 @@ type
     // in-flight line), a false positive with no real dropped ok at all.
     FPendingAckLens: array of Integer;
     FBytesReserved: Integer;
+    // Generic $N=value store (plan Phase 24's own gap: $$ used to hardcode
+    // a fixed 4-line reply with no $100/$101/$102 and no way to actually
+    // WRITE a setting - which silently no-op'd against this emulator, for
+    // Phase 24's axis calibration wizard AND the pre-existing Phase F
+    // settings grid's own Apply button alike. Persists across Reset, same
+    // as real grbl's EEPROM-backed settings surviving a soft reset.
+    FSettings: TStringList;      // Names = ID (no '$'), Values = value string
     procedure Reply(const ALine: string);
     procedure ReplyOk(ALineLen: Integer);
     procedure HandleLine(const ALine: string);
@@ -135,11 +142,20 @@ constructor TGrblEmulator.Create;
 begin
   inherited Create;
   FReplies := TStringList.Create;
+  FSettings := TStringList.Create;
+  FSettings.Values['0'] := '10';
+  FSettings.Values['32'] := '1';
+  FSettings.Values['100'] := '80.000';
+  FSettings.Values['101'] := '80.000';
+  FSettings.Values['102'] := '400.000';
+  FSettings.Values['130'] := '200.000';
+  FSettings.Values['131'] := '200.000';
   Reset;
 end;
 
 destructor TGrblEmulator.Destroy;
 begin
+  FSettings.Free;
   FReplies.Free;
   inherited Destroy;
 end;
@@ -177,7 +193,9 @@ end;
 
 procedure TGrblEmulator.HandleLine(const ALine: string);
 var
-  line: string;
+  line, idStr: string;
+  i, eqPos: Integer;
+  isNumericId: Boolean;
 begin
   line := Trim(ALine);
   if line = '' then Exit;
@@ -208,11 +226,12 @@ begin
     // real enough to exercise the app's own $$ grid AND, critically,
     // $32=1 (grbl's real laser-mode flag) so a laser job can actually be
     // run against this harness end-to-end via the normal Laser Control
-    // tab, not just plain g-code streaming.
-    Reply('$0=10');
-    Reply('$32=1');
-    Reply('$130=200.000');
-    Reply('$131=200.000');
+    // tab, not just plain g-code streaming. Reads from FSettings (below)
+    // rather than a fixed string list, so a prior $100=/$101=/$102=
+    // write (Phase 24's axis calibration wizard) is actually reflected
+    // back on the next $$ request.
+    for i := 0 to FSettings.Count - 1 do
+      Reply('$' + FSettings.Names[i] + '=' + FSettings.ValueFromIndex[i]);
     ReplyOk(Length(ALine));
     Exit;
   end;
@@ -224,6 +243,33 @@ begin
     // come.
     ReplyOk(Length(ALine));
     Exit;
+  end;
+
+  // Generic $N=value write (Phase 24): "$J=..." jog commands also start
+  // with '$' but their id-like prefix ('J') isn't all-digits, so they
+  // correctly fall through untouched to the motion-tracking code below,
+  // exactly like a real board treats $J= as a distinct command class from
+  // $N=value settings writes.
+  if (Length(line) > 1) and (line[1] = '$') then
+  begin
+    eqPos := Pos('=', line);
+    if eqPos > 2 then
+    begin
+      idStr := Copy(line, 2, eqPos - 2);
+      isNumericId := True;
+      for i := 1 to Length(idStr) do
+        if not (idStr[i] in ['0'..'9']) then
+        begin
+          isNumericId := False;
+          Break;
+        end;
+      if isNumericId then
+      begin
+        FSettings.Values[idStr] := Copy(line, eqPos + 1, Length(line) - eqPos);
+        ReplyOk(Length(ALine));
+        Exit;
+      end;
+    end;
   end;
 
   // Fake motion tracking: no real feed-rate/time simulation - execution is
