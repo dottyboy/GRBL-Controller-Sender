@@ -26,3 +26,4 @@ tools/*
 !tools/gimp-plugin/
 !tools/krita-plugin/
 !tools/qcad-plugin/
+!tools/freecad-macro/
