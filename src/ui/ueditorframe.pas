@@ -47,6 +47,7 @@ type
     FHFPresets: THeaderFooterPresetArray;
     FSelectedHeader, FSelectedFooter: string;
     FButtonStore: TCustomButtonStore;
+    FOnCurrentFileChanged: TNotifyEvent;
     procedure DoSave(const AFileName: string);
     procedure SetCurrentFile(const AFileName: string);
     procedure RefreshHeaderFooterPresets;
@@ -57,6 +58,11 @@ type
     procedure OpenFile(const AFileName: string);
     procedure LoadGeneratedText(const AText: string);
     property CurrentFile: string read FCurrentFile;
+    // Plan Phase 38: fired whenever CurrentFile changes (Open/Save As/
+    // New-via-LoadGeneratedText) so umain.pas's status bar can show the
+    // in-progress file's path immediately, not just on the next GRBL
+    // status poll.
+    property OnCurrentFileChanged: TNotifyEvent read FOnCurrentFileChanged write FOnCurrentFileChanged;
   end;
 
 implementation
@@ -130,6 +136,7 @@ begin
     LblFile.Caption := T('(untitled)')
   else
     LblFile.Caption := ExtractFileName(AFileName);
+  if Assigned(FOnCurrentFileChanged) then FOnCurrentFileChanged(Self);
 end;
 
 procedure TEditorFrame.OpenFile(const AFileName: string);
@@ -177,12 +184,21 @@ end;
 
 procedure TEditorFrame.BtnSendClick(Sender: TObject);
 var
-  i: Integer;
+  i, bodyLineCount: Integer;
   line: string;
   buttons: TCustomButtonArray;
   startMacroLines, endMacroLines, headerLines, footerLines: TStringList;
 begin
   if FSender = nil then Exit;
+
+  bodyLineCount := 0;
+  for i := 0 to SynEditor.Lines.Count - 1 do
+  begin
+    line := Trim(SynEditor.Lines[i]);
+    if line = '' then Continue;
+    if (line[1] = ';') or (Copy(line, 1, 1) = '(') then Continue;
+    Inc(bodyLineCount);
+  end;
 
   // Plan Phase 37: the same shared BeginJob/EndJob hook the laser path
   // uses - auto-run macros fire here too, not just for laser jobs (the
@@ -202,7 +218,7 @@ begin
       footerLines.Text := FSelectedFooter;
     end;
 
-    FSender.BeginJob(startMacroLines);
+    FSender.BeginJob(startMacroLines, bodyLineCount);
     for i := 0 to headerLines.Count - 1 do
       if Trim(headerLines[i]) <> '' then FSender.EnqueueGCode(headerLines[i]);
 

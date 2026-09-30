@@ -5,7 +5,7 @@ unit umain;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ComCtrls, Menus,
+  Classes, SysUtils, Math, Forms, Controls, Graphics, Dialogs, ComCtrls, Menus,
   StdCtrls, TplStatusBarExUnit, TplProgressBarUnit, rxclock, usender,
   uappconfig, ugcode, uconnectframe, udroframe, ujogframe, uterminalframe,
   ueditorframe, usettingsform, uopengl3dframe, uprobeframe, utoolsframe,
@@ -134,6 +134,13 @@ type
     procedure ApplyActiveLaserUsage;
     procedure StoreActiveLaserUsage;
     procedure SincroStartMessageReceived(const AMsg: TSincroStartMessage);
+    // Plan Phase 38: wires the user's own hand-added status bar skeleton
+    // (plStatusBarEx1/RxClock1/JobProgress/JobStatusText) to already-real
+    // data this app already tracks - called from SenderStateChanged
+    // (live, while connected/streaming) and once from FormCreate (so the
+    // bar shows a sane "Not connected" state immediately, not blank).
+    procedure UpdateStatusBar;
+    procedure EditorFileChanged(Sender: TObject);
     // ActivateTab: switches to ATab regardless of which of the three
     // inner PageControls it lives in - flips GroupPages to the right
     // outer group first (derived from ATab.PageControl's own Parent,
@@ -282,6 +289,7 @@ begin
   EditorFrame := TEditorFrame.Create(TabEditor);
   EditorFrame.Parent := TabEditor;
   EditorFrame.SetSender(FSender);
+  EditorFrame.OnCurrentFileChanged := @EditorFileChanged;
 
   View3DFrame := TOpenGL3DFrame.Create(TabView3D);
   View3DFrame.Parent := TabView3D;
@@ -384,6 +392,42 @@ begin
   FSincroStart.StartListening(
     IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'sincrostart.fifo',
     @SincroStartMessageReceived);
+
+  // Plan Phase 38, root-caused live: JobStatusText is a TLabel, i.e. a
+  // TGraphicControl with no window of its own - it's painted directly onto
+  // MainForm's canvas. plStatusBarEx1 is a real windowed TCustomControl
+  // that physically covers the same screen rectangle (same Top/Height
+  // band, full form width) and repaints its own window on every
+  // Invalidate, which always wins over content the form painted
+  // underneath it for an overlapping non-windowed sibling - so
+  // JobStatusText could never render there no matter its Caption/Font.
+  // JobProgress/RxClock1 are unaffected because they're real windowed
+  // siblings too, and ordinary sibling-window Z-order works between
+  // those. Fix: route the status text through plStatusBarEx1's own
+  // Panels (confirmed-working DrawText rendering, same mechanism the
+  // file-path SimpleText already used) instead of the label, and hide
+  // the now-redundant label. Pure code, .frm left untouched.
+  plStatusBarEx1.SimplePanel := False;
+  with plStatusBarEx1.Panels.Add do
+  begin
+    Alignment := taLeftJustify;
+    Spring := True;
+  end;
+  with plStatusBarEx1.Panels.Add do
+  begin
+    Alignment := taRightJustify;
+    Width := 319;
+  end;
+  // Blank spacer panel, same width as the region JobProgress+RxClock1
+  // physically occupy (Left=899 to the bar's own right edge, ~360px) -
+  // without it, Panels[1]'s own rect would end up UNDER those two real
+  // windowed siblings and get hidden by them the same way JobStatusText
+  // was, just shifted into a different rectangle.
+  with plStatusBarEx1.Panels.Add do
+    Width := 360;
+  JobStatusText.Visible := False;
+
+  UpdateStatusBar;
 end;
 
 procedure TMainForm.ApplyConnectionDefaults;
@@ -701,6 +745,60 @@ begin
     FluidNCFrame.ReportIgnoredKey(ALine);
 end;
 
+procedure TMainForm.UpdateStatusBar;
+var
+  laserProg: TLaserJobProgress;
+  progressPct: Integer;
+  connText, progressText, stopText, fileText: string;
+begin
+  if FSender.Connected then connText := T('Connected') else connText := T('Disconnected');
+
+  // Laser jobs keep their own, more precise Sent-vs-Executed(acked)
+  // tracking (FSender.LaserJobProgress) - preferred when active. The
+  // generic Phase 37/38 path (FSender.GenericJobActive/
+  // GenericJobProgressFraction) covers plain CNC streaming from the
+  // Editor tab, which has no equivalent execution-ack tracking of its
+  // own, only "how much has gone out over the wire" - disclosed
+  // difference, not silently presented as equally precise.
+  laserProg := FSender.LaserJobProgress;
+  progressPct := -1;
+  if laserProg.Active and (laserProg.Target > 0) then
+    progressPct := EnsureRange(Round(100 * laserProg.Executed / laserProg.Target), 0, 100)
+  else if FSender.GenericJobActive and (FSender.GenericJobProgressFraction >= 0) then
+    progressPct := EnsureRange(Round(100 * FSender.GenericJobProgressFraction), 0, 100);
+
+  if progressPct >= 0 then
+  begin
+    JobProgress.Max := 100;
+    JobProgress.Position := progressPct;
+    progressText := Format('%d%%', [progressPct]);
+  end
+  else
+  begin
+    JobProgress.Position := 0;
+    progressText := '-';
+  end;
+
+  if Pos('Alarm', FSender.State.StateStr) = 1 then
+    stopText := 'STOP'
+  else
+    stopText := '-';
+
+  plStatusBarEx1.Panels[1].Text := Format('%s / %s / %s / %s',
+    [FSender.State.StateStr, connText, progressText, stopText]);
+
+  if EditorFrame.CurrentFile = '' then
+    fileText := T('(untitled)')
+  else
+    fileText := EditorFrame.CurrentFile;
+  plStatusBarEx1.Panels[0].Text := fileText;
+end;
+
+procedure TMainForm.EditorFileChanged(Sender: TObject);
+begin
+  UpdateStatusBar;
+end;
+
 procedure TMainForm.SenderStateChanged(Sender: TObject);
 var
   progress: TLaserJobProgress;
@@ -723,6 +821,7 @@ begin
     TabLaserControl.TabVisible := FLastSupportLaserMode;
   end;
   LaserControlFrame.RefreshState;
+  UpdateStatusBar;
 
   // Plan Phase 5: crash-recovery prompt, edge-triggered on the transition
   // INTO Alarm (FAlarmDialogArmed guards repeats while still in Alarm; an

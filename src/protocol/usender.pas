@@ -130,6 +130,11 @@ type
     // minus HeaderCount, clamped to [0, Target].
     FLaserRawSent: Integer;
     FLaserRawAcked: Integer;
+    // Plan Phase 38: generic (non-laser) job progress - see BeginJob's own
+    // comment for why this is derived from the shared queue's remaining-
+    // item count rather than a second parallel sent/acked counter.
+    FGenericJobActive: Boolean;
+    FGenericJobTarget: Integer;
     // Owned copies backing FLaserJob.BodyLines / the resume footer - see
     // BeginLaserJob. Footer is tracked separately (not part of
     // TLaserJobProgress, which the resume dialog only needs Body/Target
@@ -246,16 +251,25 @@ type
 
     // Plan Phase 37: generic pre/post-job hook, shared by BOTH the laser
     // path (LaserControlFrame.BtnStartClick) and plain CNC streaming
-    // (TEditorFrame.BtnSendClick) - unlike BeginLaserJob/EndLaserJob,
-    // this does NOT track progress state (Sent/Executed/Target - that
-    // stays laser-specific for now, see Phase 38's own note on why);
-    // it only enqueues whatever pre/post-run macro g-code the caller
-    // hands it, at enqueue time - matching LaserGRBL's own real
-    // ExecuteCustomCode mechanism (fires at program-push time, not at
-    // actual job completion, since a FIFO queue guarantees end-of-job
-    // macros execute last regardless of when they're enqueued).
-    procedure BeginJob(AStartMacroLines: TStrings);
+    // (TEditorFrame.BtnSendClick) - enqueues whatever pre/post-run macro
+    // g-code the caller hands it, at enqueue time - matching LaserGRBL's
+    // own real ExecuteCustomCode mechanism (fires at program-push time,
+    // not at actual job completion, since a FIFO queue guarantees
+    // end-of-job macros execute last regardless of when they're
+    // enqueued). ABodyLineCount (Phase 38) is the total line count the
+    // caller is ABOUT to enqueue as the job's own body (not counting
+    // start-macros/header/footer/end-macros) - lets GenericJobProgress
+    // report a real, if simple, "how much has actually gone out over
+    // the wire yet" figure for the status bar, deliberately simpler
+    // than the laser path's own Sent-vs-Executed(acked) distinction:
+    // derived from the shared send queue's own remaining-item count
+    // rather than a second parallel counter, so it can never drift out
+    // of sync with what TSenderThread is really doing.
+    procedure BeginJob(AStartMacroLines: TStrings; ABodyLineCount: Integer = 0);
     procedure EndJob(AEndMacroLines: TStrings);
+    function GenericJobActive: Boolean;
+    // -1 if no job is active or Target is 0; otherwise 0..1.
+    function GenericJobProgressFraction: Double;
     function LaserJobProgress: TLaserJobProgress;
     // Resumes the CURRENTLY TRACKED job (FLaserJob, as set up by the last
     // BeginLaserJob call) from AFromLine onward, via ustatebuilder.pas's
@@ -864,14 +878,40 @@ begin
   FLaserFooterLinesOwned.Clear;
 end;
 
-procedure TSender.BeginJob(AStartMacroLines: TStrings);
+procedure TSender.BeginJob(AStartMacroLines: TStrings; ABodyLineCount: Integer);
 var
   i: Integer;
 begin
+  FGenericJobActive := ABodyLineCount > 0;
+  FGenericJobTarget := ABodyLineCount;
   if AStartMacroLines = nil then Exit;
   for i := 0 to AStartMacroLines.Count - 1 do
     if Trim(AStartMacroLines[i]) <> '' then
       EnqueueGCode(AStartMacroLines[i]);
+end;
+
+function TSender.GenericJobActive: Boolean;
+begin
+  // Auto-clears once the shared send queue has fully drained everything
+  // this job enqueued (body + footer + end-macros, all pushed by the
+  // time EndJob returns) - a real, if approximate, "still going" signal:
+  // it goes False once every line has been physically written over the
+  // wire, slightly before GRBL necessarily finishes EXECUTING the very
+  // last one, same honestly-simpler-than-the-laser-path tradeoff
+  // GenericJobProgressFraction's own comment explains.
+  if FGenericJobActive and (FQueue.Count = 0) and (FQueueInternal.Count = 0) then
+    FGenericJobActive := False;
+  Result := FGenericJobActive;
+end;
+
+function TSender.GenericJobProgressFraction: Double;
+var
+  remaining, sent: Integer;
+begin
+  if (not GenericJobActive) or (FGenericJobTarget <= 0) then Exit(-1);
+  remaining := FQueue.Count + FQueueInternal.Count;
+  sent := EnsureRange(FGenericJobTarget - remaining, 0, FGenericJobTarget);
+  Result := sent / FGenericJobTarget;
 end;
 
 procedure TSender.EndJob(AEndMacroLines: TStrings);
