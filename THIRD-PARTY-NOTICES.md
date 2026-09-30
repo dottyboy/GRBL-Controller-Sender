@@ -91,6 +91,109 @@ addition to this project's own license (see `LICENSE`, GPL-3.0-or-later).**
   `GenerateShakeTest2` (same coordinate math and g-code shape, adapted to
   this project's own `TStrings`-based generator style).
 
+## Second source wave — CNC/laser sender peers (plan-stage references, Phases 12/21/24-26)
+
+Surveyed after the original 22-phase Laser module plan was drafted, while looking for
+practical features/approaches to fold in. **Not yet implemented** as of this writing —
+each entry below names the specific phase(s) in the project's own plan file that will
+draw on it, so this notice is accurate ahead of time rather than needing to be
+reconstructed later.
+
+### Universal-G-Code-Sender / UGS (GPL-3.0)
+
+- Project: <https://github.com/winder/Universal-G-Code-Sender>
+- License: GPL-3.0 — confirmed via UGS's own `COPYING` file.
+- What's referenced: the `ugs-designer` module's vector-object actions (align/flip/
+  group/boolean) are a design reference for Phase 12's SVG-editing UI, not ported code —
+  UGS is Java/NetBeans-Platform, structurally unrelated to this project. The
+  `depth-anything-v2-small.onnx` model it bundles, and its thin Java ONNX Runtime
+  wrapper, informed Phase 23's original native-Pascal design (Phase 23 is now DEFERRED —
+  see the GIMP-ML entry below for the currently-recommended path).
+
+### Candle (GPL-3.0)
+
+- Project: <https://github.com/Denvi/Candle> (mirrored/forked at
+  `github.com/candle-cnc/candle`)
+- License: GPL-3.0 — confirmed via Candle's own `LICENSE` file.
+- What's referenced: `frmchecklist` (pre-flight checklist dialog) is a design reference
+  for Phase 25; `connections/telnetconnection.cpp` + `websocketconnection.cpp` inform
+  Phase 21's revised scope (a plain host:port network connection option is planned
+  before the original UDP-scan/HTTP-config design). Candle is C++/Qt, the closest
+  tech-stack peer to this project of anything surveyed — still a design reference only,
+  no code copied.
+
+### OpenBuilds CONTROL (GPL-3.0)
+
+- Project: <https://github.com/OpenBuilds/OpenBuilds-CONTROL>
+- License: GPL-3.0 — confirmed via its own `LICENSE` file.
+- What's referenced: its axis/servo calibration wizard (`app/img/calibrate/`) is the
+  design reference for the new Phase 24 (no equivalent existed in this project or the
+  original plan); `js/grbl-settings-templates.js` informs Phase 26's known-board
+  settings-template feature. OpenBuilds CONTROL is Electron/JavaScript — again a design
+  reference only, no code copied (nor could it be, directly, given the language gap).
+
+## Gerber/PCB isolation-routing references (Phase 33, plan-stage)
+
+### FlatCAM (MIT)
+
+- Project: <https://github.com/JuanoVenegas/flatcam> (fork of the original
+  `bitbucket.org/jpcgt/flatcam` by Juan Pablo Caram)
+- License: **MIT** — confirmed via the repo's own `LICENSE` file content (Copyright
+  2014-2018 Juan Pablo Caram), not just GitHub's detected-license field.
+- What's referenced: primary algorithm/parser reference for Phase 33 (native Gerber
+  import + isolation-routing toolpath generation) — its `camlib.py` (offset/geometry
+  core), Gerber/DXF/SVG parsers, and G-code post-processors. MIT is maximally permissive
+  and poses no compatibility question with this project's GPL-3.0-or-later even if
+  algorithmic approaches are adapted (not code copy — Python-to-Pascal reimplementation,
+  same discipline as every ported reference in this file).
+
+### Visolate (GPL-3.0)
+
+- Project: <https://github.com/Traumflug/Visolate> (also mirrored at
+  `github.com/bert/visolate`)
+- License: GPL-3.0 — confirmed by fetching the repo's actual `LICENSE.txt` content
+  directly (`gh api repos/Traumflug/Visolate/contents/LICENSE.txt`), not just GitHub's
+  license-detection field.
+- What's referenced: secondary algorithm reference for Phase 33 (isolation-milling
+  toolpath concept — offset boundary around copper). Its own project page discloses a
+  real limitation: Gerber polygon/region apertures are "not yet supported" — noted so
+  this project doesn't inherit that gap silently if this reference is used.
+
+### pcb2gcode (GPL-3.0)
+
+- Project: <https://github.com/pcb2gcode/pcb2gcode>
+- License: GPL-3.0 — confirmed via the repo's own `COPYING` file content.
+- What's referenced: secondary reference for Phase 33's Gerber region-aperture parsing
+  specifically (an area FlatCAM's own ground-plane-clearing feature suggests it handles
+  better than Visolate, though not yet confirmed by reading either parser closely).
+
+## Depth-map / relief-engraving reference (Phase 23, deferred)
+
+### MiDaS (MIT)
+
+- Project: <https://github.com/isl-org/MiDaS>
+- Copyright (c) 2019 Intel ISL (Intel Intelligent Systems Lab)
+- License: MIT.
+- What's referenced: the monocular depth-estimation model used by the GIMP-ML plugin
+  below. Phase 23 (native ONNX Runtime depth-map generation in this app itself) is
+  DEFERRED in favor of the GIMP-ML route for now — see Phase 23/28's own notes in the
+  plan file. Not compiled into or distributed with this project either way.
+
+### GIMP-ML / GIMP3-ML (third-party GIMP plugin, license varies by fork)
+
+- Projects: <https://github.com/kritiksoman/GIMP-ML> (original),
+  <https://github.com/yantoz/GIMP-ML-Hub> and
+  <https://github.com/UserUnknownFactor/GIMP3-ML> (GIMP-3-compatible forks)
+- License: not yet individually re-verified per fork as of this writing (flagged, not
+  assumed) — check the specific fork actually documented/recommended before this
+  project's own docs point users at it, same discipline as everything else in this file.
+- What's referenced: the currently-recommended path for Phase 23's "photo → real
+  depth-map" goal — install this third-party plugin inside GIMP, run its MiDaS-based
+  depth filter, then use this project's own Phase 28 bridge (original code) to send the
+  result into Phase 10's raster import. Not compiled into or distributed with this
+  project; purely documentation pointing at an optional external tool, same category as
+  PlatformIO/avrdude/autotrace below.
+
 ## grblHAL (GPL-3.0-or-later)
 
 - Project: <https://github.com/grblHAL>
@@ -220,6 +323,48 @@ completeness:
   VSCode Pascal-extension code-navigation setup, not by this project's
   build or runtime at all.
 
+## Extension/plugin bridge targets (Phases 27-32, plan-stage) — original code only
+
+Different in kind from every project above: these are external design/CAD programs
+this project's own small, **original** extension/plugin/macro files (Python/JS/
+ECMAScript, written from scratch by this project) will run *inside*, using each
+program's own public scripting API, to hand a design off to this app's SVG/raster
+import via a small local socket/FIFO. No source code from any of the six projects
+below is copied into, adapted into, or distributed with this project — so none of
+their licenses actually constrain this project's own code. Listed anyway, for
+completeness and courtesy, since the bridge files are written specifically against
+each program's real API (verified via each project's own docs before any bridge file
+is written):
+
+- **Inkscape** — GPL-2.0-or-later, with a few GIMP-derived files under GPL-3.0-only
+  making the overall binary GPL-3.0-or-later in practice (confirmed via
+  `inkscape.org/about/license` and its GitLab `LICENSES/` folder). Bridge target for
+  Phase 27, via its `inkex`/`.inx` extension API.
+- **GIMP** — GPL-3.0-or-later. Bridge target for Phase 28, via its GIMP-3
+  GObject-Introspection Python plugin API (`Gimp.PlugIn`).
+- **Krita** — GPL-3.0-or-later (KDE project). Bridge target for Phase 29, via its
+  PyKrita/`libkis` plugin API.
+- **QCAD** (Community Edition) — GPL-3.0-or-later with exceptions permitting
+  independent plugins/scripts (confirmed via `qcad.org`'s own license page). Bridge
+  target for Phase 30, via its ECMAScript/JavaScript scripting interface.
+- **FreeCAD** — LGPL-2.1-or-later/BSD (GPL-free since its 0.14 release). Bridge target
+  for Phase 31, via its Python macro system.
+- **KiCad** — GPL-3.0-or-later (dual-licensed with CC-BY-3.0-or-later for non-code
+  assets, per KiCad's own docs). Bridge target for Phase 32, via its `pcbnew` Python
+  Action Plugin API.
+
+Two small community example-script repos were also pulled in as API-usage references
+for the bridges above (not the official projects themselves):
+
+- **`FreeCAD/FreeCAD-macros`** (<https://github.com/FreeCAD/FreeCAD-macros>) — **no
+  repository-level `LICENSE`/`COPYING` file was found** (checked directly, not
+  assumed). Individual macro files in that repo may carry their own per-file license
+  headers; if any specific macro from it is ever adapted rather than just read for API
+  usage patterns, that file's own header must be checked first, not inferred from this
+  notice.
+- **`gregdavill/kicadScripts`** (<https://github.com/gregdavill/kicadScripts>) —
+  Apache License 2.0, confirmed via the repo's own `LICENSE` file content.
+
 ## CNC/laser machine catalog data
 
 `src/core/uboardcatalog.pas` and `src/core/umachinecatalog.pas` contain
@@ -227,6 +372,16 @@ factual specifications (travel dimensions, drive type, etc.) sourced
 from manufacturers' own published product pages. Facts and measurements
 are not copyrightable; no text or code was copied from any
 manufacturer's materials.
+
+## G/M-code reference documentation (not code, no license implications)
+
+Three PDF references kept in `references/` (gitignored, not distributed with this
+project) for filling out future help-text tables like `src/core/usettinghelp.pas`:
+a DrufelCNC g-code reference, a Centroid G&M-code reference, and the CNC Cookbook
+G-code course. These are documentation, not source code — nothing has been copied
+from them yet; if/when specific wording is ever transcribed into this project's own
+help text, that will be noted at the point it happens, same as every other entry in
+this file.
 
 ---
 
