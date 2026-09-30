@@ -1,15 +1,11 @@
-object ChecklistForm: TChecklistForm
-  Left = 300
+object ChecklistFrame: TChecklistFrame
+  Left = 0
   Height = 360
-  Top = 200
+  Top = 0
   Width = 420
-  BorderStyle = bsDialog
-  Caption = 'Pre-flight Checklist'
   ClientHeight = 360
   ClientWidth = 420
-  Position = poScreenCenter
-  OnCreate = FormCreate
-  LCLVersion = '4.8.0.0'
+  TabOrder = 0
   object CheckListBox1: TCheckListBox
     Left = 12
     Height = 220
@@ -42,8 +38,7 @@ object ChecklistForm: TChecklistForm
     Top = 312
     Width = 90
     Caption = 'Proceed'
-    Default = True
-    ModalResult = 1
+    OnClick = BtnProceedClick
     TabOrder = 3
   end
   object BtnCancel: TButton
@@ -51,9 +46,8 @@ object ChecklistForm: TChecklistForm
     Height = 32
     Top = 312
     Width = 92
-    Cancel = True
     Caption = 'Cancel'
-    ModalResult = 2
+    OnClick = BtnCancelClick
     TabOrder = 4
   end
 end

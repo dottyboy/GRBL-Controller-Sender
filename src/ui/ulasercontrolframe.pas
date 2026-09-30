@@ -18,11 +18,13 @@ interface
 uses
   Classes, SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls,
   Spin, ulasercommand, ulasersender, usender, uappconfig,
-  usafetycountdownform, uchecklist, uchecklistform, umaterialpreset,
+  uchecklist, umaterialpreset,
   ucustombutton, ucustombuttonstore, uheaderfooterpreset,
   uheaderfooterpresetstore, ui18n;
 
 type
+  TOnSafetyCountdownRequested = procedure(ASeconds: Integer) of object;
+  TOnChecklistRequested = procedure(AChecklist: TChecklist) of object;
 
   { TLaserControlFrame }
 
@@ -87,6 +89,8 @@ type
     FChecklist: TChecklist;
     FButtons: TCustomButtonArray;
     FOnEditMacros: TNotifyEvent;
+    FOnSafetyCountdownRequested: TOnSafetyCountdownRequested;
+    FOnChecklistRequested: TOnChecklistRequested;
     // Plan Phase 37: FHFPresets[0..BuiltInPresetCount-1] are the built-in
     // set (uheaderfooterpreset.pas), the rest are the user's own saved
     // custom ones (FHFStore) - one combined array so CboHeaderFooterPreset's
@@ -124,7 +128,30 @@ type
     // edits made on the separate Macros tab (ucustombuttonframe.pas) show
     // up here without needing a direct dependency between the two frames.
     procedure RefreshMacroButtons;
+    // Plan Phase 6, split in a later session when the safety countdown
+    // itself stopped being a blocking modal (see usafetycountdownframe.pas's
+    // own doc comment - a real X11 ShowModal crash in this environment,
+    // not a code regression): BtnStartClick now does everything through
+    // the Phase 25 checklist, then either calls this directly (countdown
+    // already skipped) or fires OnSafetyCountdownRequested and returns -
+    // umain.pas's own wiring calls this from the countdown tab's
+    // OnFinished once it really elapses, so the job still only starts
+    // after the exact same gates as before.
+    procedure ReallyStartJob(ADontShowAgainCountdown: Boolean);
+    // The countdown tab's own OnCancelled - matches the old modal's
+    // Cancel outcome (persist the checkbox, but never run the job).
+    procedure AbortPendingStart(ADontShowAgainCountdown: Boolean);
+    // The checklist tab's own OnProceed - continues exactly where the
+    // old TChecklistForm.Execute=True branch used to (decide
+    // countdown-or-run). Public so umain.pas's wiring can call it.
+    procedure ContinueStartAfterChecklist;
+    // The checklist tab's own OnCancelled.
+    procedure CancelPendingChecklist;
     property OnEditMacros: TNotifyEvent read FOnEditMacros write FOnEditMacros;
+    property OnSafetyCountdownRequested: TOnSafetyCountdownRequested
+      read FOnSafetyCountdownRequested write FOnSafetyCountdownRequested;
+    property OnChecklistRequested: TOnChecklistRequested
+      read FOnChecklistRequested write FOnChecklistRequested;
   end;
 
 implementation
@@ -237,10 +264,8 @@ end;
 
 procedure TLaserControlFrame.BtnStartClick(Sender: TObject);
 var
-  skipCountdown: Boolean;
   i: Integer;
   hasBody: Boolean;
-  StartMacroLines, EndMacroLines: TStringList;
 begin
   if (FSender = nil) or (not FSender.Connected) then
   begin
@@ -273,24 +298,46 @@ begin
   // Plan Phase 25: pre-flight checklist, shown BEFORE the Phase 6 safety
   // countdown (confirm the physical setup first, then the final
   // countdown) - alongside it, not replacing it. An empty list never
-  // blocks Start (TChecklistForm.Execute's own contract).
-  if not TChecklistForm.Execute(FChecklist) then
-  begin
-    SetStatus(T('Cancelled'), True);
-    Exit;
-  end;
+  // blocks Start (matches the old TChecklistForm.Execute's own
+  // contract). Non-empty (the real default - SeedDefaultsIfEmpty means
+  // a fresh install already has items) defers to the checklist tab;
+  // ContinueStartAfterChecklist below is exactly where control used to
+  // land right after the old blocking ShowModal call returned True.
+  if FChecklist.Count = 0 then
+    ContinueStartAfterChecklist
+  else if Assigned(FOnChecklistRequested) then
+    FOnChecklistRequested(FChecklist)
+  else
+    ContinueStartAfterChecklist;
+end;
 
+procedure TLaserControlFrame.ContinueStartAfterChecklist;
+var
+  skipCountdown: Boolean;
+begin
+  skipCountdown := (not Assigned(FAppConfig)) or FAppConfig.SkipSafetyCountdown;
+  if skipCountdown then
+    ReallyStartJob(skipCountdown)
+  else if Assigned(FOnSafetyCountdownRequested) then
+    FOnSafetyCountdownRequested(FAppConfig.SafetyCountdownSeconds)
+  else
+    // No countdown tab wired up (shouldn't happen once umain.pas sets it
+    // up, but fail toward running the job rather than silently doing
+    // nothing if it somehow isn't) - matches the old skip-countdown path.
+    ReallyStartJob(False);
+end;
+
+procedure TLaserControlFrame.CancelPendingChecklist;
+begin
+  SetStatus(T('Cancelled'), True);
+end;
+
+procedure TLaserControlFrame.ReallyStartJob(ADontShowAgainCountdown: Boolean);
+var
+  StartMacroLines, EndMacroLines: TStringList;
+begin
   if Assigned(FAppConfig) then
-  begin
-    skipCountdown := FAppConfig.SkipSafetyCountdown;
-    if not skipCountdown then
-      if not TSafetyCountdownForm.Execute(FAppConfig.SafetyCountdownSeconds, skipCountdown) then
-      begin
-        SetStatus(T('Cancelled'), True);
-        Exit; // user hit Cancel on the countdown - do not start
-      end;
-    FAppConfig.SkipSafetyCountdown := skipCountdown; // persist the checkbox either way
-  end;
+    FAppConfig.SkipSafetyCountdown := ADontShowAgainCountdown;
 
   FSender.CoolingEnabled := ChkAutoCooling.Checked;
   if ChkAutoCooling.Checked then
@@ -322,6 +369,13 @@ begin
 
   SetStatus(T('Running'), False);
   RefreshState;
+end;
+
+procedure TLaserControlFrame.AbortPendingStart(ADontShowAgainCountdown: Boolean);
+begin
+  if Assigned(FAppConfig) then
+    FAppConfig.SkipSafetyCountdown := ADontShowAgainCountdown;
+  SetStatus(T('Cancelled'), True);
 end;
 
 procedure TLaserControlFrame.BtnPauseResumeClick(Sender: TObject);

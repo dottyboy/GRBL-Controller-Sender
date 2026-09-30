@@ -15,7 +15,7 @@ uses
   urasterimportframe, usvgimportframe, uhotkeysframe, ulasertestgenframe,
   ulaserusage, ulaserusagestore, ulaserusageform, usincrostart,
   uaxiscalibrationframe, ugerberimportframe, uwificonfigframe,
-  uparametrictoolframe;
+  uparametrictoolframe, usafetycountdownframe, uchecklistframe, uchecklist;
 
 type
 
@@ -84,6 +84,8 @@ type
     TabSvgImport: TTabSheet;
     TabLaserTestGen: TTabSheet;
     TabLaserControl: TTabSheet;
+    TabSafetyCountdown: TTabSheet;
+    TabChecklist: TTabSheet;
     TabMaterials: TTabSheet;
     TabMacros: TTabSheet;
     TabHotkeys: TTabSheet;
@@ -109,6 +111,8 @@ type
     SvgImportFrame: TSvgImportFrame;
     LaserTestGenFrame: TLaserTestGenFrame;
     LaserControlFrame: TLaserControlFrame;
+    SafetyCountdownFrame: TSafetyCountdownFrame;
+    ChecklistFrame: TChecklistFrame;
     MaterialPresetFrame: TMaterialPresetFrame;
     CustomButtonFrame: TCustomButtonFrame;
     HotkeysFrame: THotkeysFrame;
@@ -133,6 +137,12 @@ type
     procedure WiFiDeviceSelected(const ADeviceString: string);
     procedure ParametricToolRequested(Sender: TObject);
     procedure ParametricToolCreated(const AName, AComment: string; ADiameter: Double);
+    procedure SafetyCountdownRequested(ASeconds: Integer);
+    procedure SafetyCountdownFinished(Sender: TObject; ADontShowAgain: Boolean);
+    procedure SafetyCountdownCancelled(Sender: TObject; ADontShowAgain: Boolean);
+    procedure ChecklistRequested(AChecklist: TChecklist);
+    procedure ChecklistProceeded(Sender: TObject);
+    procedure ChecklistCancelled(Sender: TObject);
     procedure PagesChange(Sender: TObject);
     procedure ApplyConnectionDefaults;
     procedure CaptureConnectionDefaults;
@@ -270,6 +280,25 @@ begin
   TabLaserControl.Caption := 'Laser Control';
   TabLaserControl.TabVisible := False; // shown only once BoardInfo.SupportLaserMode is known True
 
+  // Plan Phase 6, converted from a modal dialog to a plain tab in a later
+  // session - same reasoning as TabAxisCalibration's own creation
+  // comment. Unlike the other conversions this one is a GATE, not an
+  // inert tool - see usafetycountdownframe.pas's own doc comment and
+  // ulasercontrolframe.pas's ReallyStartJob/AbortPendingStart for how
+  // the old blocking ShowModal round trip became three wired events.
+  TabSafetyCountdown := PagesLaser.AddTabSheet;
+  TabSafetyCountdown.Caption := 'Safety Countdown';
+  TabSafetyCountdown.TabVisible := False; // only shown while a countdown is actually running
+
+  // Plan Phase 25, converted alongside Safety Countdown - discovered to
+  // be entangled with it (see uchecklistframe.pas's own doc comment):
+  // the checklist is seeded with real default items on first run, so it
+  // was never actually the "empty list, never blocks Start" no-op case
+  // for a normal install - every real Start click hit this modal first.
+  TabChecklist := PagesLaser.AddTabSheet;
+  TabChecklist.Caption := 'Pre-flight Checklist';
+  TabChecklist.TabVisible := False; // only shown while actually pending
+
   TabMaterials := PagesLaser.AddTabSheet;
   TabMaterials.Caption := 'Materials';
 
@@ -404,7 +433,19 @@ begin
   AxisCalibrationFrame.SetSender(FSender);
 
   LaserControlFrame.OnEditMacros := @EditMacrosRequested;
+  LaserControlFrame.OnSafetyCountdownRequested := @SafetyCountdownRequested;
+  LaserControlFrame.OnChecklistRequested := @ChecklistRequested;
   PagesLaser.OnChange := @PagesChange; // only TabLaserControl (see below) cares
+
+  SafetyCountdownFrame := TSafetyCountdownFrame.Create(TabSafetyCountdown);
+  SafetyCountdownFrame.Parent := TabSafetyCountdown;
+  SafetyCountdownFrame.OnFinished := @SafetyCountdownFinished;
+  SafetyCountdownFrame.OnCancelled := @SafetyCountdownCancelled;
+
+  ChecklistFrame := TChecklistFrame.Create(TabChecklist);
+  ChecklistFrame.Parent := TabChecklist;
+  ChecklistFrame.OnProceed := @ChecklistProceeded;
+  ChecklistFrame.OnCancelled := @ChecklistCancelled;
 
   TerminalFrame := TTerminalFrame.Create(TabTerminal);
   TerminalFrame.Parent := TabTerminal;
@@ -745,6 +786,48 @@ procedure TMainForm.ParametricToolCreated(const AName, AComment: string; ADiamet
 begin
   ToolsFrame.AddParametricTool(AName, AComment, ADiameter);
   ActivateTab(TabTools);
+end;
+
+procedure TMainForm.SafetyCountdownRequested(ASeconds: Integer);
+begin
+  TabSafetyCountdown.TabVisible := True;
+  SafetyCountdownFrame.StartCountdown(ASeconds, FAppConfig.SkipSafetyCountdown);
+  ActivateTab(TabSafetyCountdown);
+end;
+
+procedure TMainForm.SafetyCountdownFinished(Sender: TObject; ADontShowAgain: Boolean);
+begin
+  TabSafetyCountdown.TabVisible := False;
+  ActivateTab(TabLaserControl);
+  LaserControlFrame.ReallyStartJob(ADontShowAgain);
+end;
+
+procedure TMainForm.SafetyCountdownCancelled(Sender: TObject; ADontShowAgain: Boolean);
+begin
+  TabSafetyCountdown.TabVisible := False;
+  ActivateTab(TabLaserControl);
+  LaserControlFrame.AbortPendingStart(ADontShowAgain);
+end;
+
+procedure TMainForm.ChecklistRequested(AChecklist: TChecklist);
+begin
+  TabChecklist.TabVisible := True;
+  ChecklistFrame.ShowChecklist(AChecklist);
+  ActivateTab(TabChecklist);
+end;
+
+procedure TMainForm.ChecklistProceeded(Sender: TObject);
+begin
+  TabChecklist.TabVisible := False;
+  ActivateTab(TabLaserControl);
+  LaserControlFrame.ContinueStartAfterChecklist;
+end;
+
+procedure TMainForm.ChecklistCancelled(Sender: TObject);
+begin
+  TabChecklist.TabVisible := False;
+  ActivateTab(TabLaserControl);
+  LaserControlFrame.CancelPendingChecklist;
 end;
 
 procedure TMainForm.ActivateTab(ATab: TTabSheet);

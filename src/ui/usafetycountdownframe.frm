@@ -1,15 +1,11 @@
-object SafetyCountdownForm: TSafetyCountdownForm
-  Left = 300
+object SafetyCountdownFrame: TSafetyCountdownFrame
+  Left = 0
   Height = 190
-  Top = 300
+  Top = 0
   Width = 340
-  BorderStyle = bsDialog
-  Caption = 'Laser Safety Countdown'
   ClientHeight = 190
   ClientWidth = 340
-  Position = poScreenCenter
-  OnCreate = FormCreate
-  LCLVersion = '4.8.0.0'
+  TabOrder = 0
   object LblMessage: TLabel
     Left = 16
     Height = 20
@@ -46,7 +42,7 @@ object SafetyCountdownForm: TSafetyCountdownForm
     Top = 144
     Width = 100
     Caption = 'Cancel'
-    ModalResult = 2
+    OnClick = BtnCancelClick
     TabOrder = 1
   end
   object Timer1: TTimer
