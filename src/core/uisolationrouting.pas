@@ -34,7 +34,8 @@ unit uisolationrouting;
 interface
 
 uses
-  Classes, SysUtils, Math, ui18n, ugerberimport, Clipper, Clipper.Core;
+  Classes, SysUtils, Math, ui18n, ugerberimport, Clipper, Clipper.Core,
+  Clipper.Engine;
 
 type
   TIsoLoop = TGerberPointArray;       // one closed ring (first point implied closing back to itself)
@@ -52,6 +53,20 @@ type
     FeedRate: Double;       // mm/min, XY cutting feed
     PlungeRate: Double;     // mm/min, Z plunge feed
     SpindleRPM: Integer;    // 0 = don'trk emit S/M3 (assume already running)
+
+    // Plan Phase 39's "Clear all copper except traces" strategy (see
+    // GenerateClearToolpaths below) - unused by Isolate/Draw, same as
+    // Passes/PassStepover are unused by Draw. BoardMargin extends the
+    // clear region beyond the copper layer's own bounding box on every
+    // side (no separate board-outline Gerber layer needed - the
+    // overwhelming common case is a rectangular board a bit bigger than
+    // its own copper, and this covers that without the real complexity
+    // of parsing/verifying a second Gerber layer for a case this simple
+    // margin already handles). ClearStepoverPercent is the raster
+    // scan-line spacing, as a % of ToolDiameter, same convention as
+    // uspoilboard.pas's own FacingStepoverPercent.
+    BoardMargin: Double;
+    ClearStepoverPercent: Double;
   end;
 
   { TLaserConfig: plan Phase 39 - the laser-output sibling of TIsolationConfig.
@@ -78,11 +93,25 @@ type
 
   TIsoDoubleArray = array of Double;
 
+  { TClearSegment/TClearRowArray: plan Phase 39's "Clear all copper except
+    traces" strategy - a raster scan-line fill of (board rectangle minus
+    copper-plus-keepaway), grouped by row (constant Y) since the cutter
+    must rapid over any gap where copper survives rather than plunging
+    through it. X1 is always <= X2 within a segment; rows are in
+    ascending-Y order, segments within a row in ascending-X1 order (see
+    ComputeClearScanSegments). }
+  TClearSegment = record
+    X1, X2, Y: Double;
+  end;
+  TClearRow = array of TClearSegment;
+  TClearRowArray = array of TClearRow;
+
   EGenerateError = class(Exception);
 
 function DefaultIsolationConfig: TIsolationConfig;
 function DefaultLaserConfig: TLaserConfig;
 procedure ValidateIsolationConfig(const ACfg: TIsolationConfig);
+procedure ValidateClearConfig(const ACfg: TIsolationConfig);
 
 { BuildCopperSolidLoops: the unioned/polarity-resolved copper image, as
   closed loops in mm - exposed mainly for standalone testing (checking
@@ -123,6 +152,40 @@ function GenerateDrawToolpaths(const AFeatures: TGerberFeatureArray): TIsoPathAr
 procedure AppendDrawGCode(const APaths: TIsoPathArray;
   const ACfg: TIsolationConfig; ALines: TStrings);
 
+{ BuildClearRegion: the copper solid, expanded by ToolDiameter/2 +
+  IsolationGap (the same keep-away distance Isolate uses, reused rather
+  than duplicated as a separate field), subtracted from a rectangle
+  covering the copper's own bounding box grown by BoardMargin on every
+  side. Exposed mainly for standalone testing. }
+function BuildClearRegion(const AFeatures: TGerberFeatureArray;
+  const ACfg: TIsolationConfig): TPathsD;
+
+{ ComputeClearScanSegments: turns a clear region into raster scan-line
+  segments at ToolDiameter*ClearStepoverPercent/100 spacing, using
+  Clipper2's exact open-path clipping (TClipperD.AddOpenSubject) rather
+  than a thin-rectangle approximation - each row is a single infinite-
+  looking straight line clipped against the closed region, so the
+  returned segment endpoints are exact, not sampled. Exposed mainly for
+  standalone testing. }
+function ComputeClearScanSegments(const AClearRegion: TPathsD;
+  AToolDiameter, AStepoverPercent: Double): TClearRowArray;
+
+{ GenerateClearToolpaths: the main entry point, combining the two above.
+  Works for either tool axis (CNC or laser) - ACfg.ToolDiameter doubles
+  as the laser's own beam/kerf width for this strategy, same convention
+  GenerateIsolationToolpaths already uses for its own ring geometry. }
+function GenerateClearToolpaths(const AFeatures: TGerberFeatureArray;
+  const ACfg: TIsolationConfig): TClearRowArray;
+
+{ AppendClearGCode/AppendClearGCodeLaser: emit the raster as G-code, one
+  row at a time - rapid to each segment's start, cut to its end, rapid
+  (not cut) across any gap to the next segment on the same row. Mirrors
+  AppendIsolationGCode/AppendIsolationGCodeLaser's own CNC/laser split. }
+procedure AppendClearGCode(const ARows: TClearRowArray;
+  const ACfg: TIsolationConfig; ALines: TStrings);
+procedure AppendClearGCodeLaser(const ARows: TClearRowArray;
+  const ALaserCfg: TLaserConfig; ALines: TStrings);
+
 implementation
 
 const
@@ -147,6 +210,8 @@ begin
   Result.FeedRate := 300;
   Result.PlungeRate := 100;
   Result.SpindleRPM := 0;
+  Result.BoardMargin := 5;
+  Result.ClearStepoverPercent := 50;
 end;
 
 function DefaultLaserConfig: TLaserConfig;
@@ -169,6 +234,22 @@ begin
     raise EGenerateError.Create(T('Isolation routing: cut depth must be positive.'));
   if ACfg.DepthPerPass <= 0 then
     raise EGenerateError.Create(T('Isolation routing: depth per pass must be positive.'));
+end;
+
+procedure ValidateClearConfig(const ACfg: TIsolationConfig);
+begin
+  if ACfg.ToolDiameter <= 0 then
+    raise EGenerateError.Create(T('Clear copper: tool diameter must be positive.'));
+  if ACfg.IsolationGap < 0 then
+    raise EGenerateError.Create(T('Clear copper: isolation gap cannot be negative.'));
+  if ACfg.BoardMargin < 0 then
+    raise EGenerateError.Create(T('Clear copper: board margin cannot be negative.'));
+  if (ACfg.ClearStepoverPercent <= 0) or (ACfg.ClearStepoverPercent > 100) then
+    raise EGenerateError.Create(T('Clear copper: stepover % must be between 0 and 100.'));
+  if ACfg.CutDepth <= 0 then
+    raise EGenerateError.Create(T('Clear copper: cut depth must be positive.'));
+  if ACfg.DepthPerPass <= 0 then
+    raise EGenerateError.Create(T('Clear copper: depth per pass must be positive.'));
 end;
 
 { ---- point-array <-> Clipper TPathD conversion ---- }
@@ -213,13 +294,15 @@ const
   // Below this absolute area (mm^2), a "loop" is discarded as a
   // degenerate sliver rather than a real feature - general defensive
   // hygiene for any polygon-clipping pipeline (a literal zero/near-zero-
-  // area "ring" is never something a real CNC job should try to cut),
-  // independent of NormalizeWindingForOffset (see its own comment) which
-  // fixes the actual root cause found during this phase's own testing:
-  // an inconsistently-wound closed path fed into InflatePaths(...,
-  // etPolygon, ...) reproducibly shattered into many disconnected
-  // fragments instead of offsetting as one continuous boundary.
+  // area "ring" is never something a real CNC job should try to cut).
   MIN_LOOP_AREA_MM2 = 1.0E-4;
+  // Below this gap width (mm), two adjacent clear-scan segments are
+  // merged into one rather than cut as two separate moves - see
+  // ComputeClearScanSegments's own merge step for why. 0.1mm chosen
+  // deliberately generous: a real "obstruction" (keep-away corridor)
+  // narrower than this is below what any real end mill/laser kerf could
+  // usefully resolve anyway, so treating it as noise costs nothing real.
+  MIN_GAP_MM = 0.1;
 
 function PolygonAreaAbs(const ALoop: TGerberPointArray): Double;
 var
@@ -258,10 +341,10 @@ function CircleFlashPath(ACx, ACy, ARadius: Double): TPathD;
 var
   i: Integer;
 begin
-  // Winding direction here doesn't matter - NormalizeWindingForOffset
-  // (see its own comment) fixes up every shape's orientation uniformly
-  // right before the actual offset step, once, in one place, rather
-  // than needing every individual polygon builder to get it right.
+  // Winding direction here doesn't matter - BuildCopperSolidPathsD's own
+  // Union()/Difference() step is what determines the final orientation
+  // InflatePaths needs, not any individual shape builder's own
+  // convention (see BuildCopperSolidPathsD's own doc comment).
   SetLength(Result, FLASH_CIRCLE_SEGMENTS);
   for i := 0 to FLASH_CIRCLE_SEGMENTS - 1 do
   begin
@@ -392,61 +475,27 @@ begin
   for i := 0 to High(B) do Result[Length(A) + i] := B[i];
 end;
 
-{ NormalizeWindingForOffset: Clipper2's InflatePaths(..., etPolygon, ...)
-  needs each closed path consistently wound to reliably grow it outward -
-  a real, empirically confirmed requirement (not a memory-corruption
-  symptom, though it first looked exactly like one): a hand-built circle
-  polygon wound the "wrong" way reproducibly shattered into N disconnected
-  4-point fragments (N = vertex count) instead of one smooth offset ring,
-  while the SAME points reversed offset correctly every time. Reverses
-  every path with Area()>=0 to Area()<0 (the orientation that offsets
-  correctly here) - uniformly, so the relative outer-boundary/hole
-  relationship Union() already established between paths is preserved,
-  only the overall absolute sign flips. }
-function NormalizeWindingForOffset(const APaths: TPathsD): TPathsD;
-var
-  i, dominant: Integer;
-  a, maxAbsArea: Double;
-begin
-  // Flip EVERY path uniformly, or none - never decide per-path. A
-  // Union() result's outer boundaries and any holes within them are
-  // ALWAYS oppositely wound relative to each other (that's the only way
-  // a nonzero/even-odd fill can tell "solid" from "hole" at all) - a
-  // real regression caught by this unit's own test suite: an earlier,
-  // wrong version of this function reversed each path independently by
-  // its own sign, which flips outer boundaries and holes onto the SAME
-  // winding, destroying that relationship (the hole silently vanished
-  // from InflatePaths's output entirely instead of correctly shrinking).
-  // The single largest-area path is (by definition of what an "outer
-  // boundary" is) never a hole, so its sign alone decides whether the
-  // WHOLE set needs flipping to the orientation InflatePaths(...,
-  // etPolygon, ...) needs to offset correctly (empirically confirmed
-  // negative Area() in this Y-up coordinate convention).
-  SetLength(Result, Length(APaths));
-  dominant := -1;
-  maxAbsArea := -1;
-  for i := 0 to High(APaths) do
-  begin
-    a := Abs(Area(APaths[i]));
-    if a > maxAbsArea then
-    begin
-      maxAbsArea := a;
-      dominant := i;
-    end;
-  end;
-
-  if (dominant >= 0) and (Area(APaths[dominant]) >= 0) then
-  begin
-    for i := 0 to High(APaths) do
-      Result[i] := ReversePath(APaths[i]);
-  end
-  else
-  begin
-    for i := 0 to High(APaths) do
-      Result[i] := APaths[i];
-  end;
-end;
-
+{ BuildCopperSolidPathsD's output needs NO winding normalization before
+  being passed to InflatePaths(..., etPolygon, ...) - Union()/Difference()
+  already produce the winding this Clipper2 build offsets correctly
+  in, and this unit used to run an extra "NormalizeWindingForOffset" flip
+  on top of that (removed here, Phase 39's Clear-copper work) which was
+  ACTIVELY WRONG: re-verified directly (three separate, isolated A/B
+  tests outside this codebase entirely - a single square pad, a square
+  pad with a real hole, two separate islands) that Union/Difference's
+  OWN natural output already offsets cleanly with no flip at all, and
+  that flipping it (the old function's whole job) reproducibly SHATTERS
+  the result into one small fragment per vertex instead of one
+  continuous ring - confirmed live via this project's own
+  GenerateIsolationToolpaths on a plain 10mm round pad, which the old
+  code turned into 32 disconnected 4-point fragments instead of one
+  32-point ring. The old function's own comment cited a real empirical
+  test (a hand-built circle that needed reversing) - almost certainly a
+  RAW, pre-Union shape, a code path this app's actual pipeline never
+  takes (every real caller goes through BuildCopperSolidPathsD's own
+  Union/Difference first) - so that finding, while presumably accurate
+  for what it tested, didn't generalize to the shape this function
+  actually has to offset. }
 function BuildCopperSolidPathsD(const AFeatures: TGerberFeatureArray): TPathsD;
 var
   darkPaths, clearPaths, featurePaths: TPathsD;
@@ -496,7 +545,7 @@ var
   offsetDist: Double;
 begin
   ValidateIsolationConfig(ACfg);
-  copper := NormalizeWindingForOffset(BuildCopperSolidPathsD(AFeatures));
+  copper := BuildCopperSolidPathsD(AFeatures);
   SetLength(Result, ACfg.Passes);
   // Explicitly nil every slot rather than trusting SetLength's implicit
   // zero-init alone - a real, reproduced FPC dynamic-array gotcha: when
@@ -692,6 +741,279 @@ begin
 
   if ACfg.SpindleRPM > 0 then
     ALines.Add('M5');
+  ALines.Add('M30');
+end;
+
+function BuildClearRegion(const AFeatures: TGerberFeatureArray;
+  const ACfg: TIsolationConfig): TPathsD;
+var
+  copper, expandedCopper, boardRect: TPathsD;
+  bounds: TRectD;
+  keepAway: Double;
+begin
+  Result := nil;
+  copper := BuildCopperSolidPathsD(AFeatures);
+  if Length(copper) = 0 then Exit;
+
+  bounds := GetBounds(copper);
+  InflateRect(bounds, ACfg.BoardMargin, ACfg.BoardMargin);
+  SetLength(boardRect, 1);
+  boardRect[0] := bounds.AsPath;
+
+  keepAway := ACfg.ToolDiameter / 2 + ACfg.IsolationGap;
+  expandedCopper := InflatePaths(copper, keepAway, jtRound, etPolygon, 2.0, ISO_PRECISION, 0.0);
+
+  Result := Difference(boardRect, expandedCopper, frNonZero, ISO_PRECISION);
+end;
+
+function ComputeClearScanSegments(const AClearRegion: TPathsD;
+  AToolDiameter, AStepoverPercent: Double): TClearRowArray;
+var
+  bounds: TRectD;
+  stepover, minY, maxY, loX, hiX, y: Double;
+  rowCount, i, j, k, bestIdx: Integer;
+  rowLines: TPathsD;
+  rowYs: TIsoDoubleArray;
+  clipper: TClipperD;
+  closedDummy, openSolutions: TPathsD;
+  seg: TClearSegment;
+  x1, x2, tmp, bestDist, dist: Double;
+begin
+  Result := nil;
+  if Length(AClearRegion) = 0 then Exit;
+
+  bounds := GetBounds(AClearRegion);
+  loX := Min(bounds.Left, bounds.Right);
+  hiX := Max(bounds.Left, bounds.Right);
+  minY := Min(bounds.Top, bounds.Bottom);
+  maxY := Max(bounds.Top, bounds.Bottom);
+
+  stepover := AToolDiameter * (AStepoverPercent / 100);
+  if stepover <= 0 then stepover := AToolDiameter;
+
+  if (maxY - minY) <= stepover then
+    rowCount := 1
+  else
+    rowCount := Ceil((maxY - minY) / stepover) + 1;
+  if rowCount < 1 then rowCount := 1;
+
+  SetLength(rowYs, rowCount);
+  SetLength(rowLines, rowCount);
+  for i := 0 to rowCount - 1 do
+  begin
+    if rowCount = 1 then
+      y := (minY + maxY) / 2
+    else
+      y := minY + (maxY - minY) * i / (rowCount - 1);
+    rowYs[i] := y;
+    SetLength(rowLines[i], 2);
+    // extend 1mm past the region's own bounds on each side - InflateRect/
+    // GetBounds precision noise could otherwise leave the line's own
+    // endpoint exactly AT the boundary, an edge case Clipper doesn'trk
+    // need to be pushed into.
+    rowLines[i][0] := PointD(loX - 1, y);
+    rowLines[i][1] := PointD(hiX + 1, y);
+  end;
+
+  clipper := TClipperD.Create(ISO_PRECISION);
+  try
+    clipper.AddOpenSubject(rowLines);
+    clipper.AddClip(AClearRegion);
+    clipper.Execute(ctIntersection, frNonZero, closedDummy, openSolutions);
+  finally
+    clipper.Free;
+  end;
+
+  SetLength(Result, rowCount);
+  for i := 0 to rowCount - 1 do
+    SetLength(Result[i], 0);
+
+  // Each open-path result is an exact straight sub-segment of its own
+  // originating row line (Clipper only ever inserts points that lie ON
+  // the original line when clipping a straight open path against a
+  // closed polygon) - so every point in one result shares the same Y,
+  // and matching it back to "which row" only needs the first point's Y.
+  for i := 0 to High(openSolutions) do
+  begin
+    if Length(openSolutions[i]) < 2 then Continue;
+    y := openSolutions[i][0].Y;
+
+    bestIdx := -1;
+    bestDist := MaxDouble;
+    for j := 0 to rowCount - 1 do
+    begin
+      dist := Abs(rowYs[j] - y);
+      if dist < bestDist then
+      begin
+        bestDist := dist;
+        bestIdx := j;
+      end;
+    end;
+    if bestIdx < 0 then Continue;
+
+    x1 := openSolutions[i][0].X;
+    x2 := openSolutions[i][High(openSolutions[i])].X;
+    if x1 > x2 then
+    begin
+      tmp := x1; x1 := x2; x2 := tmp;
+    end;
+
+    seg.X1 := x1;
+    seg.X2 := x2;
+    seg.Y := rowYs[bestIdx];
+    SetLength(Result[bestIdx], Length(Result[bestIdx]) + 1);
+    Result[bestIdx][High(Result[bestIdx])] := seg;
+  end;
+
+  // Sort segments within each row by X1 ascending - a plain insertion
+  // sort is fine, real PCBs produce at most a handful of gaps per row.
+  for i := 0 to rowCount - 1 do
+    for j := 1 to High(Result[i]) do
+    begin
+      seg := Result[i][j];
+      k := j - 1;
+      while (k >= 0) and (Result[i][k].X1 > seg.X1) do
+      begin
+        Result[i][k + 1] := Result[i][k];
+        Dec(k);
+      end;
+      Result[i][k + 1] := seg;
+    end;
+
+  // Merge adjacent segments whose gap is a numerical sliver rather than a
+  // real one - a real, observed artifact: a scan line passing extremely
+  // close to a vertex of an offset-circle's round-join polygon approximation
+  // (see BuildClearRegion) can produce a spurious near-zero-width "cut" at
+  // that vertex, splitting what should be one continuous segment into two
+  // with a ~0.001-0.01mm gap between them - real copper never produces a
+  // gap that thin (way below any real machining tolerance), so treat
+  // anything under MIN_GAP_MM as noise and merge across it.
+  for i := 0 to rowCount - 1 do
+  begin
+    j := 0;
+    while j < High(Result[i]) do
+    begin
+      if Result[i][j + 1].X1 - Result[i][j].X2 < MIN_GAP_MM then
+      begin
+        Result[i][j].X2 := Result[i][j + 1].X2;
+        for k := j + 1 to High(Result[i]) - 1 do
+          Result[i][k] := Result[i][k + 1];
+        SetLength(Result[i], Length(Result[i]) - 1);
+      end
+      else
+        Inc(j);
+    end;
+  end;
+end;
+
+function GenerateClearToolpaths(const AFeatures: TGerberFeatureArray;
+  const ACfg: TIsolationConfig): TClearRowArray;
+var
+  region: TPathsD;
+begin
+  ValidateClearConfig(ACfg);
+  region := BuildClearRegion(AFeatures, ACfg);
+  Result := ComputeClearScanSegments(region, ACfg.ToolDiameter, ACfg.ClearStepoverPercent);
+end;
+
+procedure AppendClearGCode(const ARows: TClearRowArray;
+  const ACfg: TIsolationConfig; ALines: TStrings);
+var
+  depths: TIsoDoubleArray;
+  d, r, s, idx: Integer;
+  row: TClearRow;
+  leftToRight: Boolean;
+  fromX, toX: Double;
+begin
+  ValidateClearConfig(ACfg);
+  depths := BuildDepthList(ACfg.CutDepth, ACfg.DepthPerPass);
+
+  ALines.Add('(Clear-copper toolpath generated by GRBL-Controller-Sender)');
+  ALines.Add('G21');
+  ALines.Add('G90');
+  ALines.Add(Format('G0Z%.4f', [ACfg.SafeZ], GInvFS));
+  if ACfg.SpindleRPM > 0 then
+    ALines.Add(Format('M3S%d', [ACfg.SpindleRPM], GInvFS));
+
+  for d := 0 to High(depths) do
+  begin
+    leftToRight := True;
+    for r := 0 to High(ARows) do
+    begin
+      row := ARows[r];
+      if Length(row) = 0 then
+      begin
+        leftToRight := not leftToRight;
+        Continue; // whole row covered by copper/keepaway - nothing to cut
+      end;
+      for s := 0 to High(row) do
+      begin
+        if leftToRight then idx := s else idx := High(row) - s;
+        if leftToRight then
+        begin
+          fromX := row[idx].X1; toX := row[idx].X2;
+        end
+        else
+        begin
+          fromX := row[idx].X2; toX := row[idx].X1;
+        end;
+        // full retract/replunge per segment, not just per row - a gap
+        // between segments on the same row is exactly where copper
+        // survives, and the tool must never coast across it at depth.
+        ALines.Add(Format('G0X%.4fY%.4f', [fromX, row[idx].Y], GInvFS));
+        ALines.Add(Format('G1Z%.4fF%g', [depths[d], ACfg.PlungeRate], GInvFS));
+        ALines.Add(Format('G1X%.4fY%.4fF%g', [toX, row[idx].Y, ACfg.FeedRate], GInvFS));
+        ALines.Add(Format('G0Z%.4f', [ACfg.SafeZ], GInvFS));
+      end;
+      leftToRight := not leftToRight;
+    end;
+  end;
+
+  if ACfg.SpindleRPM > 0 then
+    ALines.Add('M5');
+  ALines.Add('M30');
+end;
+
+procedure AppendClearGCodeLaser(const ARows: TClearRowArray;
+  const ALaserCfg: TLaserConfig; ALines: TStrings);
+var
+  r, s, idx: Integer;
+  row: TClearRow;
+  leftToRight: Boolean;
+  fromX, toX: Double;
+begin
+  ALines.Add('(Clear-copper toolpath generated by GRBL-Controller-Sender - laser)');
+  ALines.Add('G21');
+  ALines.Add('G90');
+
+  leftToRight := True;
+  for r := 0 to High(ARows) do
+  begin
+    row := ARows[r];
+    if Length(row) = 0 then
+    begin
+      leftToRight := not leftToRight;
+      Continue;
+    end;
+    for s := 0 to High(row) do
+    begin
+      if leftToRight then idx := s else idx := High(row) - s;
+      if leftToRight then
+      begin
+        fromX := row[idx].X1; toX := row[idx].X2;
+      end
+      else
+      begin
+        fromX := row[idx].X2; toX := row[idx].X1;
+      end;
+      ALines.Add(Format('G0X%.4fY%.4f', [fromX, row[idx].Y], GInvFS));
+      ALines.Add(Format('M3S%d', [ALaserCfg.Power], GInvFS));
+      ALines.Add(Format('G1X%.4fY%.4fF%g', [toX, row[idx].Y, ALaserCfg.FeedRate], GInvFS));
+      ALines.Add('M5');
+    end;
+    leftToRight := not leftToRight;
+  end;
+
   ALines.Add('M30');
 end;
 

@@ -39,14 +39,15 @@ object GerberImportFrame: TGerberImportFrame
   end
   object RgStrategy: TRadioGroup
     Left = 160
-    Height = 50
+    Height = 72
     Top = 48
-    Width = 190
+    Width = 260
     Caption = 'Strategy'
     ItemIndex = 0
     Items.Strings = (
       'Isolate'
       'Draw (CNC only)'
+      'Clear all copper except traces'
     )
     OnClick = RgStrategyClick
     TabOrder = 2
@@ -124,6 +125,44 @@ object GerberImportFrame: TGerberImportFrame
     MinValue = 0.001
     TabOrder = 6
     Value = 0.15
+  end
+  object LblBoardMargin: TLabel
+    Left = 244
+    Height = 15
+    Top = 126
+    Width = 100
+    Caption = 'Board margin (mm)'
+  end
+  object EdBoardMargin: TFloatSpinEdit
+    Left = 244
+    Height = 24
+    Top = 144
+    Width = 70
+    DecimalPlaces = 2
+    Increment = 0.5
+    MaxValue = 200
+    MinValue = 0
+    TabOrder = 30
+    Value = 5
+  end
+  object LblClearStepover: TLabel
+    Left = 330
+    Height = 15
+    Top = 126
+    Width = 120
+    Caption = 'Clear stepover (%)'
+  end
+  object EdClearStepover: TFloatSpinEdit
+    Left = 330
+    Height = 24
+    Top = 144
+    Width = 100
+    DecimalPlaces = 1
+    Increment = 5
+    MaxValue = 100
+    MinValue = 1
+    TabOrder = 31
+    Value = 50
   end
   object LblCutDepth: TLabel
     Left = 12

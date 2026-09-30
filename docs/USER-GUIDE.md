@@ -122,16 +122,18 @@ Gerber...** loads one, then pick:
   just emits `M3 S<power>`/`M5` instead of Z-plunge g-code — no Z axis
   at all).
 - **Strategy**: **Isolate** (mills a thin channel around each trace,
-  leaving the copper otherwise untouched) or **Draw**, CNC-only (follows
+  leaving the copper otherwise untouched), **Draw**, CNC-only (follows
   the trace/pad centerlines directly — a pen or engraving-tip job, not a
-  milling one). Picking Laser while Draw is active snaps back to
-  Isolate automatically, since laser+Draw isn't a real combination.
-  A third strategy, clearing all copper except the traces, is planned
-  but not built yet (needs a second board-outline Gerber layer and a
-  fill-hatching toolpath generator, neither of which exist yet).
-- The usual CNC fields (tool diameter, isolation gap, passes/stepover,
-  cut depth, feed/plunge rate, spindle RPM) or laser fields (power,
-  feed) depending on **Tool**, then **Generate G-Code**.
+  milling one), or **Clear all copper except traces** (raster-fills
+  everything else — the board rectangle, sized from the copper layer's
+  own bounding box plus **Board margin**, minus the traces/pads plus
+  their own keep-away — at **Clear stepover %** of the tool/beam width;
+  works with either Tool). Picking Laser while Draw is active snaps back
+  to Isolate automatically, since laser+Draw isn't a real combination.
+- The usual CNC fields (tool diameter, isolation gap, passes/stepover —
+  or board margin/clear stepover for the Clear strategy — cut depth,
+  feed/plunge rate, spindle RPM) or laser fields (power, feed) depending
+  on **Tool**, then **Generate G-Code**.
 
 **Double-sided registration** (its own section, CNC-only): drills 1-2
 small tooling holes at explicit XY positions via **Generate
@@ -310,16 +312,15 @@ without hand-editing `hotkeys.ini`.
 persists across restarts. Coverage is thorough but not perfect — a few
 fields are still sized for English text and may clip slightly in
 Croatian or German (visible in a couple of the screenshots above too —
-e.g. Probe's "Probe fee[d]", Gerber Import's field-label overlap, and
+e.g. Probe's "Probe fee[d]", Gerber Import's field-label overlap and its
+Strategy radio group clipping "Clear all copper except trace[s]" even in
+English at this box width, and
 SVG/Vectorize's "Generate from SVG"/"Generate from Vect[orize]" buttons
 overlapping their neighbors at this window size — all real, all
 cosmetic).
 
 ## What's not here yet
 
-- The PCB "clear all copper except traces" strategy (Gerber Import tab)
-  — needs a board-outline Gerber layer and a fill-hatching toolpath
-  generator, neither built yet.
 - The stretch-goal modal dialogs (parametric tool wizard, resume-job
   dialog, safety countdown, WiFi config, axis calibration wizard) aren't
   illustrated with screenshots yet — every tab across all three groups

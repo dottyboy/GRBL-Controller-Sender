@@ -9,16 +9,19 @@ unit ugerberimportframe;
 
   Phase 39 adds two independent selectors: which TOOL (CNC mill vs laser -
   a G-code-emission difference over the same ring geometry for Isolate)
-  and which STRATEGY (Isolate - Phase 33's original offset-ring behavior -
-  vs Draw, CNC-only, which follows the raw parsed trace/pad geometry
-  directly instead of offsetting around it). Laser+Draw is not a real
-  combination (a laser "drawing" ink makes no physical sense, and a laser
-  following copper directly is just Isolate with a near-zero gap) -
-  selecting Laser forces Strategy back to Isolate. "Clear all copper
-  except the traces" (the plan's own third strategy) is NOT implemented
-  yet - it needs a second (board-outline) Gerber layer and a fill-hatching
-  toolpath generator neither of which exist yet, disclosed rather than
-  faked with a menu option that does nothing. }
+  and which STRATEGY: Isolate (Phase 33's original offset-ring behavior),
+  Draw (CNC-only, follows the raw parsed trace/pad geometry directly
+  instead of offsetting around it), or Clear all copper except traces
+  (raster-fills the board rectangle minus copper+keep-away, either tool -
+  see uisolationrouting.pas's GenerateClearToolpaths). Laser+Draw is not
+  a real combination (a laser "drawing" ink makes no physical sense, and
+  a laser following copper directly is just Isolate with a near-zero
+  gap) - selecting Laser forces Strategy back to Isolate. Clear needs no
+  second Gerber layer for the board outline - it uses the copper layer's
+  own bounding box plus a user-set margin, which covers the overwhelming
+  common case (a rectangular board somewhat bigger than its own copper)
+  without the real complexity of parsing and verifying a second Gerber
+  layer for a case this simple margin already handles. }
 
 {$mode objfpc}{$H+}
 
@@ -38,6 +41,8 @@ type
     BtnGenerateRegHoles: TButton;
     BtnOpenGerber: TButton;
     ChkMirror: TCheckBox;
+    EdBoardMargin: TFloatSpinEdit;
+    EdClearStepover: TFloatSpinEdit;
     EdCutDepth: TFloatSpinEdit;
     EdDepthPerPass: TFloatSpinEdit;
     EdFeedRate: TSpinEdit;
@@ -58,6 +63,8 @@ type
     EdSafeZ: TFloatSpinEdit;
     EdSpindleRPM: TSpinEdit;
     EdToolDiameter: TFloatSpinEdit;
+    LblBoardMargin: TLabel;
+    LblClearStepover: TLabel;
     LblCutDepth: TLabel;
     LblDepthPerPass: TLabel;
     LblFeedRate: TLabel;
@@ -99,6 +106,7 @@ type
     procedure UpdateFieldVisibility;
     function IsLaser: Boolean;
     function IsDraw: Boolean;
+    function IsClear: Boolean;
   public
     constructor Create(AOwner: TComponent); override;
     procedure ImportFile(const AFileName: string);
@@ -144,6 +152,11 @@ begin
   Result := RgStrategy.ItemIndex = 1;
 end;
 
+function TGerberImportFrame.IsClear: Boolean;
+begin
+  Result := RgStrategy.ItemIndex = 2;
+end;
+
 procedure TGerberImportFrame.RgToolClick(Sender: TObject);
 begin
   if IsLaser and IsDraw then
@@ -166,22 +179,31 @@ end;
 
 procedure TGerberImportFrame.UpdateFieldVisibility;
 var
-  showIsolateOnly, showCNC, showLaser: Boolean;
+  showToolGap, showIsolateOnly, showClearOnly, showCNC, showLaser: Boolean;
 begin
-  showIsolateOnly := not IsDraw;   // ToolDiameter/IsolationGap/Passes/PassStepover
-                                   // only mean anything for the offset-ring
-                                   // Isolate strategy, not Draw's direct trace.
+  // ToolDiameter/IsolationGap mean "tool/beam width" + "keep-away from
+  // copper" for BOTH Isolate and Clear, just not for Draw (which follows
+  // the raw trace geometry directly, no offset at all).
+  showToolGap := not IsDraw;
+  showIsolateOnly := (not IsDraw) and (not IsClear); // Passes/PassStepover -
+                                   // concentric-ring stepping only means
+                                   // anything for Isolate.
+  showClearOnly := IsClear;        // BoardMargin/ClearStepover
   showCNC := not IsLaser;
   showLaser := IsLaser;
 
-  LblToolDiameter.Visible := showIsolateOnly;
-  EdToolDiameter.Visible := showIsolateOnly;
-  LblIsolationGap.Visible := showIsolateOnly;
-  EdIsolationGap.Visible := showIsolateOnly;
+  LblToolDiameter.Visible := showToolGap;
+  EdToolDiameter.Visible := showToolGap;
+  LblIsolationGap.Visible := showToolGap;
+  EdIsolationGap.Visible := showToolGap;
   LblPasses.Visible := showIsolateOnly;
   EdPasses.Visible := showIsolateOnly;
   LblPassStepover.Visible := showIsolateOnly;
   EdPassStepover.Visible := showIsolateOnly;
+  LblBoardMargin.Visible := showClearOnly;
+  EdBoardMargin.Visible := showClearOnly;
+  LblClearStepover.Visible := showClearOnly;
+  EdClearStepover.Visible := showClearOnly;
 
   LblCutDepth.Visible := showCNC;
   EdCutDepth.Visible := showCNC;
@@ -232,6 +254,8 @@ begin
   Result.FeedRate := EdFeedRate.Value;
   Result.PlungeRate := EdPlungeRate.Value;
   Result.SpindleRPM := EdSpindleRPM.Value;
+  Result.BoardMargin := EdBoardMargin.Value;
+  Result.ClearStepoverPercent := EdClearStepover.Value;
 end;
 
 function TGerberImportFrame.LaserConfigFromUI: TLaserConfig;
@@ -311,6 +335,7 @@ var
   laserCfg: TLaserConfig;
   passes: TIsoPassArray;
   drawPaths: TIsoPathArray;
+  clearRows: TClearRowArray;
   gcode: TStringList;
   shapeCount, p: Integer;
 begin
@@ -384,6 +409,41 @@ begin
         SetStatus(Format(T('%d drawn shapes, %d parser warnings (see file for detail).'), [shapeCount, Length(warnings)]), False)
       else
         SetStatus(Format(T('%d drawn shapes generated.'), [shapeCount]), False);
+    end
+    else if IsClear then
+    begin
+      // Clear all copper except traces (CNC or laser): raster-fill
+      // (board bbox + margin) minus (copper + keep-away) - see
+      // uisolationrouting.pas's own GenerateClearToolpaths doc comment.
+      try
+        clearRows := GenerateClearToolpaths(feats, cfg);
+      except
+        on E: uisolationrouting.EGenerateError do
+        begin
+          SetStatus(E.Message, True);
+          Exit;
+        end;
+      end;
+
+      shapeCount := 0;
+      for p := 0 to High(clearRows) do
+        shapeCount := shapeCount + Length(clearRows[p]);
+
+      if Length(clearRows) = 0 then
+      begin
+        SetStatus(T('No copper found - nothing to clear against.'), True);
+        Exit;
+      end;
+
+      if IsLaser then
+        AppendClearGCodeLaser(clearRows, laserCfg, gcode)
+      else
+        AppendClearGCode(clearRows, cfg, gcode);
+
+      if Length(warnings) > 0 then
+        SetStatus(Format(T('%d clear-copper segments, %d parser warnings (see file for detail).'), [shapeCount, Length(warnings)]), False)
+      else
+        SetStatus(Format(T('%d clear-copper segments generated.'), [shapeCount]), False);
     end
     else
     begin

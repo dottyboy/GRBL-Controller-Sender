@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..304] of array[0..2] of string = (
+  Catalog: array[0..307] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -269,6 +269,9 @@ const
     ('No copper found - nothing to draw.', 'Bakar nije pronađen - nema što crtati.', 'Kein Kupfer gefunden - nichts zu zeichnen.'),
     ('%d drawn shapes generated.', 'Generirano %d nacrtanih oblika.', '%d gezeichnete Formen erzeugt.'),
     ('%d drawn shapes, %d parser warnings (see file for detail).', 'Generirano %d nacrtanih oblika, %d upozorenja (detalji u datoteci).', '%d gezeichnete Formen, %d Warnungen (Details in der Datei).'),
+    ('No copper found - nothing to clear against.', 'Bakar nije pronađen - nema od čega čistiti.', 'Kein Kupfer gefunden - nichts zum Freiräumen.'),
+    ('%d clear-copper segments generated.', 'Generirano %d segmenata čišćenja bakra.', '%d Kupfer-Freiraum-Segmente erzeugt.'),
+    ('%d clear-copper segments, %d parser warnings (see file for detail).', 'Generirano %d segmenata čišćenja bakra, %d upozorenja (detalji u datoteci).', '%d Kupfer-Freiraum-Segmente, %d Warnungen (Details in der Datei).'),
 
     // Phases 34-38 i18n batch (deferred at the time, added in the follow-on optimization pass)
     ('New Parametric Tool', 'Novi parametarski alat', 'Neues parametrisches Werkzeug'),
