@@ -1,29 +1,35 @@
-unit uwificonfigform;
+unit uwificonfigframe;
 
-{ TWiFiConfigForm: the plan's own Phase 21 "WiFi discovery/config" wizard,
+{ TWiFiConfigFrame: the plan's own Phase 21 "WiFi discovery/config" wizard,
   built in the order the plan's own 2nd-wave scope note calls for -
   direct host:port connect first (cheap, high value, works today against
   any already-configured ESP32/grblHAL board), then the LAN scan and the
   write-config helper as secondary, harder-to-verify-without-real-
-  hardware add-ons.
+  hardware add-ons. Converted from a modal dialog to a plain Machine-
+  group tab in a later session - this X11/Qt5 environment hit a real,
+  reproducible crash creating ANY second top-level window via ShowModal,
+  confirmed environment-level, not a code regression - a tab sidesteps
+  it entirely.
 
   - "Use This Connection" builds the userial.pas "tcp:host:port" device
-    string and hands it back to the caller (uconnectframe.pas), which
-    fills it into the existing Port field - reuses the whole existing
-    connect machinery unchanged, no new connection path in usender.pas.
+    string and fires OnDeviceSelected, which uconnectframe.pas's own
+    handler (wired in umain.pas) uses to fill the existing Port field -
+    reuses the whole existing connect machinery unchanged, no new
+    connection path in usender.pas.
   - "Scan" runs uwifidiscovery.pas's ScanSubnet on a worker TThread (this
-    form's own small TScanThread, mirroring usender.pas's own
+    frame's own small TScanThread, mirroring usender.pas's own
     TSenderThread/Synchronize discipline) so the UI stays responsive;
     results feed "Use Selected Result" back into the Host field.
   - "Write Config" sends uwificonfig.pas's real command sequence through
     the ALREADY-CONNECTED FSender (only meaningful while connected via
     real USB serial to begin with - the assigned-IP reply is best watched
-    on the existing Terminal tab, not duplicated here, since this dialog
+    on the existing Terminal tab, not duplicated here, since this frame
     doesn't own a second serial-reading path).
 
-  A modal using only TEdit/TComboBox/TListBox/TButton controls - no
-  TStringGrid (this codebase's own established Phase-14-crash-class
-  avoidance for freshly-created modals). }
+  Uses only TEdit/TComboBox/TListBox/TButton controls - no TStringGrid
+  (this codebase's own established Phase-14-crash-class avoidance for
+  freshly-created modals; kept even though this is a tab now, no reason
+  to reintroduce that risk). }
 
 {$mode objfpc}{$H+}
 
@@ -31,9 +37,10 @@ interface
 
 uses
   Classes, SysUtils, StrUtils, Forms, Controls, StdCtrls, Dialogs,
-  userial, utcpdevice, uwifidiscovery, uwificonfig, usender, ui18n, ui18ncontrols;
+  utcpdevice, uwifidiscovery, uwificonfig, usender, ui18n, ui18ncontrols;
 
 type
+  TOnDeviceSelected = procedure(const ADeviceString: string) of object;
 
   { TScanThread: runs ScanSubnet off the UI thread, Synchronizing each
     found result / progress tick back - same discipline as
@@ -42,7 +49,7 @@ type
   private
     FBaseIP, FSubnetMask: string;
     FPort, FTimeoutMs: Integer;
-    FOwner: TObject; // TWiFiConfigForm, typed as TObject to avoid a circular class reference
+    FOwner: TObject; // TWiFiConfigFrame, typed as TObject to avoid a circular class reference
     FPendingResult: TDiscoveryResult;
     FPendingDone, FPendingTotal: Integer;
     procedure SyncFound;
@@ -57,10 +64,9 @@ type
     constructor Create(AOwner: TObject; const ABaseIP, ASubnetMask: string; APort, ATimeoutMs: Integer);
   end;
 
-  { TWiFiConfigForm }
+  { TWiFiConfigFrame }
 
-  TWiFiConfigForm = class(TForm)
-    BtnClose: TButton;
+  TWiFiConfigFrame = class(TFrame)
     BtnDirectConnect: TButton;
     BtnScan: TButton;
     BtnStopScan: TButton;
@@ -90,24 +96,19 @@ type
     procedure BtnStopScanClick(Sender: TObject);
     procedure BtnUseSelectedClick(Sender: TObject);
     procedure BtnWriteConfigClick(Sender: TObject);
-    procedure FormCreate(Sender: TObject);
-    procedure FormDestroy(Sender: TObject);
     procedure LbResultsSelectionChange(Sender: TObject; User: Boolean);
   private
     FSender: TSender;
     FScanThread: TScanThread;
     FScanCancelled: Boolean;
     FResults: array of TDiscoveryResult;
-    FDeviceString: string; // result for the caller - '' if the dialog was just closed
+    FOnDeviceSelected: TOnDeviceSelected;
     procedure ScanFinished;
   public
-    // Shows the dialog. Returns the "tcp:host:port" device string to
-    // connect with if the user clicked "Use This Connection" or "Use
-    // Selected Result" (either sets it and closes), '' if they just
-    // closed the dialog without picking anything. ASender, if not nil,
-    // enables the "Write Config" section (needs an already-open
-    // connection to actually send anything).
-    class function Execute(ASender: TSender): string;
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure SetSender(ASender: TSender);
+    property OnDeviceSelected: TOnDeviceSelected read FOnDeviceSelected write FOnDeviceSelected;
   end;
 
 implementation
@@ -128,9 +129,9 @@ end;
 
 procedure TScanThread.SyncFound;
 var
-  frm: TWiFiConfigForm;
+  frm: TWiFiConfigFrame;
 begin
-  frm := FOwner as TWiFiConfigForm;
+  frm := FOwner as TWiFiConfigFrame;
   SetLength(frm.FResults, Length(frm.FResults) + 1);
   frm.FResults[High(frm.FResults)] := FPendingResult;
   frm.LbResults.Items.Add(Format('%s%s (port %d)', [FPendingResult.IP,
@@ -139,15 +140,15 @@ end;
 
 procedure TScanThread.SyncProgress;
 var
-  frm: TWiFiConfigForm;
+  frm: TWiFiConfigFrame;
 begin
-  frm := FOwner as TWiFiConfigForm;
+  frm := FOwner as TWiFiConfigFrame;
   frm.LblScanProgress.Caption := Format(T('Scanning: %d / %d'), [FPendingDone, FPendingTotal]);
 end;
 
 procedure TScanThread.SyncFinished;
 begin
-  (FOwner as TWiFiConfigForm).ScanFinished;
+  (FOwner as TWiFiConfigFrame).ScanFinished;
 end;
 
 procedure TScanThread.DoFound(const AResult: TDiscoveryResult);
@@ -165,7 +166,7 @@ end;
 
 function TScanThread.DoCancel: Boolean;
 begin
-  Result := Terminated or (FOwner as TWiFiConfigForm).FScanCancelled;
+  Result := Terminated or (FOwner as TWiFiConfigFrame).FScanCancelled;
 end;
 
 procedure TScanThread.Execute;
@@ -174,20 +175,21 @@ begin
   Synchronize(@SyncFinished);
 end;
 
-{ TWiFiConfigForm }
+{ TWiFiConfigFrame }
 
-procedure TWiFiConfigForm.FormCreate(Sender: TObject);
+constructor TWiFiConfigFrame.Create(AOwner: TComponent);
 begin
+  inherited Create(AOwner);
   TranslateControls(Self);
   CbBoardKind.Items.Clear;
   CbBoardKind.Items.Add('Ortur');
   CbBoardKind.Items.Add('Longer');
   CbBoardKind.ItemIndex := 0;
   EdPort.Text := '23';
-  BtnWriteConfig.Enabled := (FSender <> nil) and FSender.Connected;
+  BtnWriteConfig.Enabled := False;
 end;
 
-procedure TWiFiConfigForm.FormDestroy(Sender: TObject);
+destructor TWiFiConfigFrame.Destroy;
 begin
   if FScanThread <> nil then
   begin
@@ -195,9 +197,16 @@ begin
     FScanThread.WaitFor;
     FScanThread.Free;
   end;
+  inherited Destroy;
 end;
 
-procedure TWiFiConfigForm.BtnDirectConnectClick(Sender: TObject);
+procedure TWiFiConfigFrame.SetSender(ASender: TSender);
+begin
+  FSender := ASender;
+  BtnWriteConfig.Enabled := (FSender <> nil) and FSender.Connected;
+end;
+
+procedure TWiFiConfigFrame.BtnDirectConnectClick(Sender: TObject);
 var
   host: string;
   port: Integer;
@@ -209,11 +218,11 @@ begin
     ShowMessage(T('Enter a valid host and port first.'));
     Exit;
   end;
-  FDeviceString := TCP_DEVICE_PREFIX + host + ':' + IntToStr(port);
-  ModalResult := mrOK;
+  if Assigned(FOnDeviceSelected) then
+    FOnDeviceSelected(TCP_DEVICE_PREFIX + host + ':' + IntToStr(port));
 end;
 
-procedure TWiFiConfigForm.BtnScanClick(Sender: TObject);
+procedure TWiFiConfigFrame.BtnScanClick(Sender: TObject);
 var
   port: Integer;
 begin
@@ -249,21 +258,21 @@ begin
   FScanThread := TScanThread.Create(Self, Trim(EdBaseIP.Text), Trim(EdSubnetMask.Text), port, 300);
 end;
 
-procedure TWiFiConfigForm.BtnStopScanClick(Sender: TObject);
+procedure TWiFiConfigFrame.BtnStopScanClick(Sender: TObject);
 begin
   FScanCancelled := True;
   BtnStopScan.Enabled := False;
   LblScanProgress.Caption := T('Stopping...');
 end;
 
-procedure TWiFiConfigForm.ScanFinished;
+procedure TWiFiConfigFrame.ScanFinished;
 begin
   // Deliberately does NOT touch FScanThread itself (no nil-ing, no Free) -
   // this runs via Synchronize from INSIDE the thread's own Execute, right
   // before Execute returns; freeing the thread object from its own still-
   // executing call stack would be a use-after-free the moment Execute's
   // remaining cleanup ran. The thread object is only ever freed later,
-  // from a different call stack (the next BtnScanClick, or FormDestroy) -
+  // from a different call stack (the next BtnScanClick, or Destroy) -
   // see BtnScanClick's own comment on this exact hazard.
   BtnScan.Enabled := True;
   BtnStopScan.Enabled := False;
@@ -273,12 +282,12 @@ begin
     LblScanProgress.Caption := Format(T('Scan finished - %d found'), [Length(FResults)]);
 end;
 
-procedure TWiFiConfigForm.LbResultsSelectionChange(Sender: TObject; User: Boolean);
+procedure TWiFiConfigFrame.LbResultsSelectionChange(Sender: TObject; User: Boolean);
 begin
   BtnUseSelected.Enabled := LbResults.ItemIndex >= 0;
 end;
 
-procedure TWiFiConfigForm.BtnUseSelectedClick(Sender: TObject);
+procedure TWiFiConfigFrame.BtnUseSelectedClick(Sender: TObject);
 var
   idx: Integer;
 begin
@@ -288,7 +297,7 @@ begin
   EdPort.Text := IntToStr(FResults[idx].Port);
 end;
 
-procedure TWiFiConfigForm.BtnWriteConfigClick(Sender: TObject);
+procedure TWiFiConfigFrame.BtnWriteConfigClick(Sender: TObject);
 var
   kind: TWiFiBoardKind;
   cmds: TStringList;
@@ -315,22 +324,6 @@ begin
     cmds.Free;
   end;
   ShowMessage(T('WiFi config commands sent - watch the Terminal tab for the assigned IP once the board reconnects.'));
-end;
-
-class function TWiFiConfigForm.Execute(ASender: TSender): string;
-var
-  frm: TWiFiConfigForm;
-begin
-  Result := '';
-  frm := TWiFiConfigForm.Create(Application);
-  try
-    frm.FSender := ASender;
-    frm.BtnWriteConfig.Enabled := (ASender <> nil) and ASender.Connected;
-    if frm.ShowModal = mrOK then
-      Result := frm.FDeviceString;
-  finally
-    frm.Free;
-  end;
 end;
 
 end.

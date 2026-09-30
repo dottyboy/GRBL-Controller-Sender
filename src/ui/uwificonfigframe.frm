@@ -1,16 +1,11 @@
-object WiFiConfigForm: TWiFiConfigForm
-  Left = 220
+object WiFiConfigFrame: TWiFiConfigFrame
+  Left = 0
   Height = 520
-  Top = 140
+  Top = 0
   Width = 620
-  BorderStyle = bsDialog
-  Caption = 'Connect via WiFi'
   ClientHeight = 520
   ClientWidth = 620
-  Position = poScreenCenter
-  OnCreate = FormCreate
-  OnDestroy = FormDestroy
-  LCLVersion = '4.8.0.0'
+  TabOrder = 0
   object LblDirectHeader: TLabel
     Left = 12
     Height = 17
@@ -203,16 +198,5 @@ object WiFiConfigForm: TWiFiConfigForm
     Caption = 'Write Config'
     OnClick = BtnWriteConfigClick
     TabOrder = 12
-  end
-  object BtnClose: TButton
-    Left = 518
-    Height = 32
-    Top = 476
-    Width = 90
-    Caption = 'Close'
-    Cancel = True
-    Default = True
-    ModalResult = 2
-    TabOrder = 13
   end
 end

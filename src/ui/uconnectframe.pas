@@ -6,10 +6,10 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, Graphics,
-  usender, uportlist, uboardcatalog, ui18n, ugrblemulator, userial,
-  uwificonfigform;
+  usender, uportlist, uboardcatalog, ui18n, ugrblemulator, userial;
 
 type
+  TOnWiFiConfigRequested = procedure(Sender: TObject) of object;
 
   { TConnectFrame }
 
@@ -36,11 +36,15 @@ type
   private
     FSender: TSender;
     FCatalogIndexByRow: array of Integer; // CboBoardProfile row -> Catalog index, -1 = "(Auto-detect)"
+    FOnWiFiConfigRequested: TOnWiFiConfigRequested;
     procedure PopulateBoardProfiles;
   public
     constructor Create(AOwner: TComponent); override;
     procedure SetSender(ASender: TSender);
     procedure RefreshState;
+    procedure UseDeviceString(const ADevice: string);
+    property OnWiFiConfigRequested: TOnWiFiConfigRequested
+      read FOnWiFiConfigRequested write FOnWiFiConfigRequested;
   end;
 
 implementation
@@ -124,16 +128,21 @@ begin
 end;
 
 procedure TConnectFrame.BtnWiFiClick(Sender: TObject);
-var
-  device: string;
 begin
-  device := TWiFiConfigForm.Execute(FSender);
-  if device <> '' then
-  begin
-    if CboPort.Items.IndexOf(device) < 0 then
-      CboPort.Items.Add(device);
-    CboPort.Text := device;
-  end;
+  // Was a modal dialog (TWiFiConfigForm.Execute) - now just jumps to its
+  // own tab (wired in umain.pas); UseDeviceString below is that tab's
+  // own OnDeviceSelected handler, filling this frame's Port field
+  // exactly like the old modal's return value used to.
+  if Assigned(FOnWiFiConfigRequested) then
+    FOnWiFiConfigRequested(Self);
+end;
+
+procedure TConnectFrame.UseDeviceString(const ADevice: string);
+begin
+  if ADevice = '' then Exit;
+  if CboPort.Items.IndexOf(ADevice) < 0 then
+    CboPort.Items.Add(ADevice);
+  CboPort.Text := ADevice;
 end;
 
 procedure TConnectFrame.BtnRefreshClick(Sender: TObject);

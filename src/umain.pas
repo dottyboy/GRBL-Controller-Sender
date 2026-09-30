@@ -14,7 +14,7 @@ uses
   ulasercontrolframe, umaterialpreset, umaterialpresetframe, ucustombuttonframe,
   urasterimportframe, usvgimportframe, uhotkeysframe, ulasertestgenframe,
   ulaserusage, ulaserusagestore, ulaserusageform, usincrostart,
-  uaxiscalibrationframe, ugerberimportframe;
+  uaxiscalibrationframe, ugerberimportframe, uwificonfigframe;
 
 type
 
@@ -87,10 +87,12 @@ type
     TabHotkeys: TTabSheet;
     TabAxisCalibration: TTabSheet;
     TabTerminal: TTabSheet;
+    TabWiFiConfig: TTabSheet;
     ConnectFrame: TConnectFrame;
     DROFrame: TDROFrame;
     JogFrame: TJogFrame;
     TerminalFrame: TTerminalFrame;
+    WiFiConfigFrame: TWiFiConfigFrame;
     EditorFrame: TEditorFrame;
     View3DFrame: TOpenGL3DFrame;
     ProbeFrame: TProbeFrame;
@@ -124,6 +126,8 @@ type
     procedure OfferLaserResume;
     procedure MaterialPresetApply(const APreset: TMaterialPreset);
     procedure EditMacrosRequested(Sender: TObject);
+    procedure WiFiConfigRequested(Sender: TObject);
+    procedure WiFiDeviceSelected(const ADeviceString: string);
     procedure PagesChange(Sender: TObject);
     procedure ApplyConnectionDefaults;
     procedure CaptureConnectionDefaults;
@@ -240,6 +244,13 @@ begin
 
   TabTerminal := PagesMachine.AddTabSheet;
   TabTerminal.Caption := 'Terminal';
+
+  // Plan Phase 21, converted from a modal dialog to a plain tab in a
+  // later session - same reasoning as TabAxisCalibration's own creation
+  // comment (real, environment-level ShowModal crash in this X11/Qt5
+  // setup, confirmed not a code regression - a tab sidesteps it).
+  TabWiFiConfig := PagesMachine.AddTabSheet;
+  TabWiFiConfig.Caption := 'WiFi Config';
 
   TabRasterImport := PagesLaser.AddTabSheet;
   TabRasterImport.Caption := 'Raster Import';
@@ -381,6 +392,12 @@ begin
   TerminalFrame := TTerminalFrame.Create(TabTerminal);
   TerminalFrame.Parent := TabTerminal;
   TerminalFrame.SetSender(FSender);
+
+  WiFiConfigFrame := TWiFiConfigFrame.Create(TabWiFiConfig);
+  WiFiConfigFrame.Parent := TabWiFiConfig;
+  WiFiConfigFrame.SetSender(FSender);
+  WiFiConfigFrame.OnDeviceSelected := @WiFiDeviceSelected;
+  ConnectFrame.OnWiFiConfigRequested := @WiFiConfigRequested;
 
   ApplyConnectionDefaults;
 
@@ -689,6 +706,17 @@ end;
 procedure TMainForm.EditMacrosRequested(Sender: TObject);
 begin
   ActivateTab(TabMacros);
+end;
+
+procedure TMainForm.WiFiConfigRequested(Sender: TObject);
+begin
+  ActivateTab(TabWiFiConfig);
+end;
+
+procedure TMainForm.WiFiDeviceSelected(const ADeviceString: string);
+begin
+  ConnectFrame.UseDeviceString(ADeviceString);
+  ActivateTab(TabControl);
 end;
 
 procedure TMainForm.ActivateTab(ATab: TTabSheet);
