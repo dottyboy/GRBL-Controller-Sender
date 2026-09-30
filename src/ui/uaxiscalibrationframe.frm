@@ -1,15 +1,11 @@
-object AxisCalibrationForm: TAxisCalibrationForm
-  Left = 260
+object AxisCalibrationFrame: TAxisCalibrationFrame
+  Left = 0
   Height = 340
-  Top = 160
+  Top = 0
   Width = 460
-  BorderStyle = bsDialog
-  Caption = 'Axis Calibration'
   ClientHeight = 340
   ClientWidth = 460
-  Position = poScreenCenter
-  OnCreate = FormCreate
-  LCLVersion = '4.8.0.0'
+  TabOrder = 0
   object RbAxisX: TRadioButton
     Left = 16
     Height = 24
@@ -123,14 +119,13 @@ object AxisCalibrationForm: TAxisCalibrationForm
     OnClick = BtnApplyClick
     TabOrder = 6
   end
-  object BtnClose: TButton
-    Left = 358
-    Height = 30
-    Top = 292
-    Width = 86
-    Caption = 'Close'
-    Default = True
-    ModalResult = 1
+  object BtnRefresh: TButton
+    Left = 260
+    Height = 26
+    Top = 12
+    Width = 100
+    Caption = 'Refresh'
+    OnClick = BtnRefreshClick
     TabOrder = 7
   end
   object RefreshTimer: TTimer

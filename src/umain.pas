@@ -14,7 +14,7 @@ uses
   ulasercontrolframe, umaterialpreset, umaterialpresetframe, ucustombuttonframe,
   urasterimportframe, usvgimportframe, uhotkeysframe, ulasertestgenframe,
   ulaserusage, ulaserusagestore, ulaserusageform, usincrostart,
-  uaxiscalibrationform, ugerberimportframe;
+  uaxiscalibrationframe, ugerberimportframe;
 
 type
 
@@ -85,6 +85,7 @@ type
     TabMaterials: TTabSheet;
     TabMacros: TTabSheet;
     TabHotkeys: TTabSheet;
+    TabAxisCalibration: TTabSheet;
     TabTerminal: TTabSheet;
     ConnectFrame: TConnectFrame;
     DROFrame: TDROFrame;
@@ -106,6 +107,7 @@ type
     MaterialPresetFrame: TMaterialPresetFrame;
     CustomButtonFrame: TCustomButtonFrame;
     HotkeysFrame: THotkeysFrame;
+    AxisCalibrationFrame: TAxisCalibrationFrame;
     FLastFirmwareName: string; // tracks BoardInfo.FirmwareName so TabFluidNC
                                 // is only rebuilt/toggled on an actual change
     // Plan Phase 9: tracks BoardInfo.SupportLaserMode so TabLaserControl is
@@ -274,6 +276,15 @@ begin
   TabHotkeys := PagesSettings.AddTabSheet;
   TabHotkeys.Caption := 'Hotkeys';
 
+  // Plan Phase 24, converted from a modal dialog to a plain tab in a
+  // later session - this X11/Qt5 environment hit a real, reproducible
+  // crash creating any second top-level window via ShowModal (confirmed
+  // environment-level, not a code regression - reproduced even on an
+  // already-shipped, long-working dialog via a genuine menu click, no
+  // debug code involved at all). A tab sidesteps it entirely.
+  TabAxisCalibration := PagesSettings.AddTabSheet;
+  TabAxisCalibration.Caption := 'Axis Calibration';
+
   ConnectFrame := TConnectFrame.Create(TabControl);
   ConnectFrame.Parent := TabControl;
   ConnectFrame.SetSender(FSender);
@@ -359,6 +370,10 @@ begin
   HotkeysFrame := THotkeysFrame.Create(TabHotkeys);
   HotkeysFrame.Parent := TabHotkeys;
   HotkeysFrame.SetHotkeyMap(FHotkeyMap);
+
+  AxisCalibrationFrame := TAxisCalibrationFrame.Create(TabAxisCalibration);
+  AxisCalibrationFrame.Parent := TabAxisCalibration;
+  AxisCalibrationFrame.SetSender(FSender);
 
   LaserControlFrame.OnEditMacros := @EditMacrosRequested;
   PagesLaser.OnChange := @PagesChange; // only TabLaserControl (see below) cares
@@ -655,7 +670,9 @@ end;
 
 procedure TMainForm.MenuToolsAxisCalibrationClick(Sender: TObject);
 begin
-  TAxisCalibrationForm.Execute(FSender);
+  // Was a modal dialog (TAxisCalibrationForm.Execute) - now just jumps to
+  // its own permanent tab, see TabAxisCalibration's own creation comment.
+  ActivateTab(TabAxisCalibration);
 end;
 
 procedure TMainForm.MaterialPresetApply(const APreset: TMaterialPreset);
