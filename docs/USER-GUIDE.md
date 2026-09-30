@@ -4,10 +4,10 @@ What actually works today, with real screenshots of the actual running
 app. See the top-level `README.md` first for the "test project, no
 warranty" disclaimer — it applies to everything below.
 
-**Coverage note**: this guide is being filled in group by group. The
-**Machine** and **Laser** groups are fully illustrated. The **Settings
-& Tools** group still has its older, screenshot-free descriptions
-further down — that gets the same treatment in a later pass.
+**Coverage note**: all 18 real tabs across all three groups —
+**Machine**, **Laser**, **Settings & Tools** — are illustrated with
+real screenshots below. Only the stretch-goal modal dialogs (see "What's
+not here yet") aren't covered yet.
 
 ## The three tab groups
 
@@ -241,6 +241,8 @@ instead of re-typing them by hand each time you switch material.
 
 ## Tools tab
 
+![Tools tab](screenshots/tools-tab.png)
+
 A simple end-mill/bit table (diameter, flutes, length, stepover,
 comments), persisted between sessions. **Load preset...** fills a row
 from a built-in catalog (real FreeCAD Tool Bit Editor defaults — common
@@ -251,28 +253,44 @@ of picking from a fixed size list.
 
 ## Settings ($$) tab
 
+![Settings ($$) tab](screenshots/settings-tab.png)
+
 Shows every `$N=value` the board reports. **Refresh** re-reads them;
 **Apply** sends back only the rows you actually changed. **Fetch
 Descriptions** pulls rich per-setting descriptions from the board if it
 supports grblHAL's `$ES` extension; otherwise standard grbl 1.1 settings
-still get a human-readable description from a built-in table.
+still get a human-readable description from a built-in table (the
+screenshot above shows the plain-grbl fallback descriptions, since the
+offline test emulator used to capture it doesn't implement `$ES`).
 
 ## Firmware Builder tab
+
+![Firmware Builder tab](screenshots/firmware-builder-tab.png)
 
 For building custom grblHAL or µCNC firmware with a dual-drive
 (auto-squared) axis enabled — pick your board, add an axis with a free
 motor/limit slot, Generate the patched project, Build (needs
 [PlatformIO](https://platformio.org/) installed), and Upload. This is
-independent of any live connection.
+independent of any live connection. The board list is populated by
+scanning local `uCNC`/`grblHAL` source checkouts under `references/` —
+the screenshot shows "0 board(s) found" because this build doesn't have
+those external repos checked out; with them present, **Refresh Boards**
+lists every real environment found inside.
 
 ## FluidNC Config tab
+
+![FluidNC Config tab](screenshots/fluidnc-config-tab.png)
 
 Only appears when a connected board identifies itself as FluidNC.
 Download/edit/upload its `config.yaml` directly (raw YAML editor, or use
 **Edit Axes...** for a structured axes/motors/homing dialog instead of
-hand-editing YAML).
+hand-editing YAML). The tab is normally hidden with any other firmware —
+forced visible here only to capture this screenshot, with sample YAML
+typed directly into the editor rather than downloaded from a real board.
 
 ## Macros tab
+
+![Macros tab](screenshots/macros-tab.png)
 
 Custom buttons, each enqueuing its own saved g-code when clicked. Two
 grid columns (click a cell to toggle) flag a button to also fire
@@ -280,6 +298,8 @@ automatically at job **Start**/**End** — for any job, laser or plain
 CNC — without a manual click.
 
 ## Hotkeys tab
+
+![Hotkeys tab](screenshots/hotkeys-tab.png)
 
 Rebind the keyboard-jog shortcuts listed under the Control tab above,
 without hand-editing `hotkeys.ini`.
@@ -300,8 +320,10 @@ cosmetic).
 - The PCB "clear all copper except traces" strategy (Gerber Import tab)
   — needs a board-outline Gerber layer and a fill-hatching toolpath
   generator, neither built yet.
-- This guide's own Settings & Tools group screenshots — text
-  descriptions further down are accurate, just not yet illustrated.
+- The stretch-goal modal dialogs (parametric tool wizard, resume-job
+  dialog, safety countdown, WiFi config, axis calibration wizard) aren't
+  illustrated with screenshots yet — every tab across all three groups
+  now is.
 
 If something else seems undocumented or behaves differently than
 described here, don't assume it's intentional — open an issue and ask.
