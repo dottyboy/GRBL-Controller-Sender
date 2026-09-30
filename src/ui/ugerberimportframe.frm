@@ -1,10 +1,10 @@
 object GerberImportFrame: TGerberImportFrame
   Left = 0
-  Height = 480
+  Height = 620
   Top = 0
   Width = 700
   Align = alClient
-  ClientHeight = 480
+  ClientHeight = 620
   ClientWidth = 700
   TabOrder = 0
   object BtnOpenGerber: TButton
@@ -288,5 +288,179 @@ object GerberImportFrame: TGerberImportFrame
     Top = 322
     Width = 3
     Caption = ''
+  end
+  object LblRegSection: TLabel
+    Left = 12
+    Height = 15
+    Top = 356
+    Width = 220
+    Caption = 'Double-sided registration (CNC only)'
+    Font.Style = [fsBold]
+    ParentFont = False
+  end
+  object LblRegHoleDiameter: TLabel
+    Left = 12
+    Height = 15
+    Top = 380
+    Width = 110
+    Caption = 'Hole diameter (mm)'
+  end
+  object EdRegHoleDiameter: TFloatSpinEdit
+    Left = 12
+    Height = 24
+    Top = 398
+    Width = 100
+    DecimalPlaces = 2
+    Increment = 0.1
+    MaxValue = 10
+    MinValue = 0.5
+    TabOrder = 16
+    Value = 3
+  end
+  object LblRegDrillDepth: TLabel
+    Left = 128
+    Height = 15
+    Top = 380
+    Width = 100
+    Caption = 'Drill depth (mm)'
+  end
+  object EdRegDrillDepth: TFloatSpinEdit
+    Left = 128
+    Height = 24
+    Top = 398
+    Width = 100
+    DecimalPlaces = 2
+    Increment = 0.5
+    MaxValue = 50
+    MinValue = 0.1
+    TabOrder = 17
+    Value = 6
+  end
+  object LblRegPeckDepth: TLabel
+    Left = 244
+    Height = 15
+    Top = 380
+    Width = 100
+    Caption = 'Peck depth (mm)'
+  end
+  object EdRegPeckDepth: TFloatSpinEdit
+    Left = 244
+    Height = 24
+    Top = 398
+    Width = 100
+    DecimalPlaces = 2
+    Increment = 0.5
+    MaxValue = 50
+    MinValue = 0
+    TabOrder = 18
+    Value = 2
+  end
+  object LblRegHole1: TLabel
+    Left = 12
+    Height = 15
+    Top = 442
+    Width = 120
+    Caption = 'Hole 1 X, Y (mm)'
+  end
+  object EdRegHole1X: TFloatSpinEdit
+    Left = 12
+    Height = 24
+    Top = 460
+    Width = 70
+    DecimalPlaces = 2
+    Increment = 1
+    MaxValue = 1000
+    MinValue = -1000
+    TabOrder = 19
+    Value = 5
+  end
+  object EdRegHole1Y: TFloatSpinEdit
+    Left = 86
+    Height = 24
+    Top = 460
+    Width = 70
+    DecimalPlaces = 2
+    Increment = 1
+    MaxValue = 1000
+    MinValue = -1000
+    TabOrder = 20
+    Value = 5
+  end
+  object LblRegHole2: TLabel
+    Left = 180
+    Height = 15
+    Top = 442
+    Width = 120
+    Caption = 'Hole 2 X, Y (mm)'
+  end
+  object EdRegHole2X: TFloatSpinEdit
+    Left = 180
+    Height = 24
+    Top = 460
+    Width = 70
+    DecimalPlaces = 2
+    Increment = 1
+    MaxValue = 1000
+    MinValue = -1000
+    TabOrder = 21
+    Value = 95
+  end
+  object EdRegHole2Y: TFloatSpinEdit
+    Left = 254
+    Height = 24
+    Top = 460
+    Width = 70
+    DecimalPlaces = 2
+    Increment = 1
+    MaxValue = 1000
+    MinValue = -1000
+    TabOrder = 22
+    Value = 5
+  end
+  object BtnGenerateRegHoles: TButton
+    Left = 12
+    Height = 32
+    Top = 500
+    Width = 220
+    Caption = 'Generate Registration Holes'
+    OnClick = BtnGenerateRegHolesClick
+    TabOrder = 23
+  end
+  object LblMirrorSection: TLabel
+    Left = 12
+    Height = 15
+    Top = 550
+    Width = 140
+    Caption = 'Mirror for second side'
+    Font.Style = [fsBold]
+    ParentFont = False
+  end
+  object ChkMirror: TCheckBox
+    Left = 12
+    Height = 19
+    Top = 572
+    Width = 170
+    Caption = 'Mirror before generating'
+    OnClick = ChkMirrorClick
+    TabOrder = 24
+  end
+  object LblMirrorAxisX: TLabel
+    Left = 200
+    Height = 15
+    Top = 570
+    Width = 110
+    Caption = 'Mirror axis X (mm)'
+  end
+  object EdMirrorAxisX: TFloatSpinEdit
+    Left = 200
+    Height = 24
+    Top = 588
+    Width = 100
+    DecimalPlaces = 2
+    Increment = 1
+    MaxValue = 1000
+    MinValue = -1000
+    TabOrder = 25
+    Value = 50
   end
 end

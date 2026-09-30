@@ -26,7 +26,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, StdCtrls, ExtCtrls, Dialogs,
-  Spin, ugerberimport, uisolationrouting, ui18n;
+  Spin, ugerberimport, uisolationrouting, uregistrationholes, ui18n;
 
 type
   TOnGenerated = procedure(const AProgramText: string) of object;
@@ -35,16 +35,26 @@ type
 
   TGerberImportFrame = class(TFrame)
     BtnGenerate: TButton;
+    BtnGenerateRegHoles: TButton;
     BtnOpenGerber: TButton;
+    ChkMirror: TCheckBox;
     EdCutDepth: TFloatSpinEdit;
     EdDepthPerPass: TFloatSpinEdit;
     EdFeedRate: TSpinEdit;
     EdIsolationGap: TFloatSpinEdit;
     EdLaserFeedRate: TSpinEdit;
     EdLaserPower: TSpinEdit;
+    EdMirrorAxisX: TFloatSpinEdit;
     EdPasses: TSpinEdit;
     EdPassStepover: TFloatSpinEdit;
     EdPlungeRate: TSpinEdit;
+    EdRegDrillDepth: TFloatSpinEdit;
+    EdRegHole1X: TFloatSpinEdit;
+    EdRegHole1Y: TFloatSpinEdit;
+    EdRegHole2X: TFloatSpinEdit;
+    EdRegHole2Y: TFloatSpinEdit;
+    EdRegHoleDiameter: TFloatSpinEdit;
+    EdRegPeckDepth: TFloatSpinEdit;
     EdSafeZ: TFloatSpinEdit;
     EdSpindleRPM: TSpinEdit;
     EdToolDiameter: TFloatSpinEdit;
@@ -55,9 +65,17 @@ type
     LblIsolationGap: TLabel;
     LblLaserFeedRate: TLabel;
     LblLaserPower: TLabel;
+    LblMirrorAxisX: TLabel;
+    LblMirrorSection: TLabel;
     LblPasses: TLabel;
     LblPassStepover: TLabel;
     LblPlungeRate: TLabel;
+    LblRegDrillDepth: TLabel;
+    LblRegHole1: TLabel;
+    LblRegHole2: TLabel;
+    LblRegHoleDiameter: TLabel;
+    LblRegPeckDepth: TLabel;
+    LblRegSection: TLabel;
     LblSafeZ: TLabel;
     LblSpindleRPM: TLabel;
     LblStatus: TLabel;
@@ -65,7 +83,9 @@ type
     RgStrategy: TRadioGroup;
     RgTool: TRadioGroup;
     procedure BtnGenerateClick(Sender: TObject);
+    procedure BtnGenerateRegHolesClick(Sender: TObject);
     procedure BtnOpenGerberClick(Sender: TObject);
+    procedure ChkMirrorClick(Sender: TObject);
     procedure RgStrategyClick(Sender: TObject);
     procedure RgToolClick(Sender: TObject);
   private
@@ -75,6 +95,7 @@ type
     procedure SetStatus(const AMsg: string; AIsError: Boolean);
     function ConfigFromUI: TIsolationConfig;
     function LaserConfigFromUI: TLaserConfig;
+    function RegHoleConfigFromUI: TRegistrationHoleConfig;
     procedure UpdateFieldVisibility;
     function IsLaser: Boolean;
     function IsDraw: Boolean;
@@ -96,6 +117,12 @@ begin
   FDialog := TOpenDialog.Create(Self);
   FDialog.Filter := 'Gerber files (*.gbr;*.ger;*.gtl;*.gbl;*.gts;*.gbs)|*.gbr;*.ger;*.gtl;*.gbl;*.gts;*.gbs|All files (*.*)|*.*';
   UpdateFieldVisibility;
+  ChkMirrorClick(Self);
+end;
+
+procedure TGerberImportFrame.ChkMirrorClick(Sender: TObject);
+begin
+  EdMirrorAxisX.Enabled := ChkMirror.Checked;
 end;
 
 procedure TGerberImportFrame.SetStatus(const AMsg: string; AIsError: Boolean);
@@ -173,6 +200,24 @@ begin
   EdLaserPower.Visible := showLaser;
   LblLaserFeedRate.Visible := showLaser;
   EdLaserFeedRate.Visible := showLaser;
+
+  // Registration holes (Phase 40) need an actual drilled hole for a
+  // dowel pin - CNC-only, no laser equivalent. Mirror stays available
+  // for either tool (Isolate can run on laser too).
+  LblRegSection.Visible := showCNC;
+  LblRegHoleDiameter.Visible := showCNC;
+  EdRegHoleDiameter.Visible := showCNC;
+  LblRegDrillDepth.Visible := showCNC;
+  EdRegDrillDepth.Visible := showCNC;
+  LblRegPeckDepth.Visible := showCNC;
+  EdRegPeckDepth.Visible := showCNC;
+  LblRegHole1.Visible := showCNC;
+  EdRegHole1X.Visible := showCNC;
+  EdRegHole1Y.Visible := showCNC;
+  LblRegHole2.Visible := showCNC;
+  EdRegHole2X.Visible := showCNC;
+  EdRegHole2Y.Visible := showCNC;
+  BtnGenerateRegHoles.Visible := showCNC;
 end;
 
 function TGerberImportFrame.ConfigFromUI: TIsolationConfig;
@@ -193,6 +238,50 @@ function TGerberImportFrame.LaserConfigFromUI: TLaserConfig;
 begin
   Result.Power := EdLaserPower.Value;
   Result.FeedRate := EdLaserFeedRate.Value;
+end;
+
+function TGerberImportFrame.RegHoleConfigFromUI: TRegistrationHoleConfig;
+begin
+  Result.HoleDiameter := EdRegHoleDiameter.Value;
+  Result.DrillDepth := EdRegDrillDepth.Value;
+  Result.PeckDepth := EdRegPeckDepth.Value;
+  // Registration holes reuse the tab's existing CNC SafeZ/PlungeRate/
+  // SpindleRPM fields rather than duplicating them - same physical
+  // machine setup, no reason for a second set of values.
+  Result.PlungeRate := EdPlungeRate.Value;
+  Result.SafeZ := EdSafeZ.Value;
+  Result.SpindleRPM := EdSpindleRPM.Value;
+end;
+
+procedure TGerberImportFrame.BtnGenerateRegHolesClick(Sender: TObject);
+var
+  pts: TRegistrationPointArray;
+  cfg: TRegistrationHoleConfig;
+  gcode: TStringList;
+begin
+  SetLength(pts, 2);
+  pts[0].X := EdRegHole1X.Value;
+  pts[0].Y := EdRegHole1Y.Value;
+  pts[1].X := EdRegHole2X.Value;
+  pts[1].Y := EdRegHole2Y.Value;
+  cfg := RegHoleConfigFromUI;
+
+  gcode := TStringList.Create;
+  try
+    try
+      uregistrationholes.AppendRegistrationHolesGCode(pts, cfg, gcode);
+    except
+      on E: uregistrationholes.EGenerateError do
+      begin
+        SetStatus(E.Message, True);
+        Exit;
+      end;
+    end;
+    SetStatus(T('Registration holes program generated.'), False);
+    if Assigned(FOnGenerated) then FOnGenerated(gcode.Text);
+  finally
+    gcode.Free;
+  end;
 end;
 
 procedure TGerberImportFrame.ImportFile(const AFileName: string);
@@ -255,6 +344,12 @@ begin
     Exit;
   end;
 
+  // Phase 40: mirror the ALREADY-parsed geometry before either toolpath
+  // generator ever sees it - both GenerateDrawToolpaths and
+  // GenerateIsolationToolpaths stay completely unaware this happened.
+  if ChkMirror.Checked then
+    feats := MirrorFeaturesX(feats, EdMirrorAxisX.Value);
+
   cfg := ConfigFromUI;
   laserCfg := LaserConfigFromUI;
   gcode := TStringList.Create;
@@ -275,7 +370,11 @@ begin
       try
         AppendDrawGCode(drawPaths, cfg, gcode);
       except
-        on E: EGenerateError do
+        // uisolationrouting's own EGenerateError, explicitly qualified -
+        // uregistrationholes (Phase 40) declares an unrelated class of
+        // the same short name, and a bare reference would silently pick
+        // whichever unit comes later in this file's own uses clause.
+        on E: uisolationrouting.EGenerateError do
         begin
           SetStatus(E.Message, True);
           Exit;
@@ -292,7 +391,7 @@ begin
       try
         passes := GenerateIsolationToolpaths(feats, cfg);
       except
-        on E: EGenerateError do
+        on E: uisolationrouting.EGenerateError do
         begin
           SetStatus(E.Message, True);
           Exit;

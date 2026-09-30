@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..293] of array[0..2] of string = (
+  Catalog: array[0..304] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -295,5 +295,18 @@ const
     ('Apply on Send', 'Primijeni pri slanju', 'Bei Senden anwenden'),
     ('Enqueues its g-code when clicked, or automatically at job Start/End if flagged (click a Start/End cell to toggle).', 'Dodaje svoj G-kod u red kad se klikne, ili automatski na Start/Kraj posla ako je označeno (klikni ćeliju Start/Kraj za promjenu).', 'Reiht seinen G-Code bei Klick ein, oder automatisch bei Job-Start/Ende wenn markiert (Start/Ende-Zelle anklicken zum Umschalten).'),
     ('Connected', 'Povezano', 'Verbunden'),
-    ('Disconnected', 'Nije povezano', 'Nicht verbunden')
+    ('Disconnected', 'Nije povezano', 'Nicht verbunden'),
+
+    // Phase 40: double-sided PCB registration holes + mirror-for-second-side
+    ('Double-sided registration (CNC only)', 'Dvostrano poravnanje (samo CNC)', 'Zweiseitige Ausrichtung (nur CNC)'),
+    ('Drill depth (mm)', 'Dubina bušenja (mm)', 'Bohrtiefe (mm)'),
+    ('Generate Registration Holes', 'Generiraj referentne rupe', 'Passlöcher erzeugen'),
+    ('Hole 1 X, Y (mm)', 'Rupa 1 X, Y (mm)', 'Loch 1 X, Y (mm)'),
+    ('Hole 2 X, Y (mm)', 'Rupa 2 X, Y (mm)', 'Loch 2 X, Y (mm)'),
+    ('Hole diameter (mm)', 'Promjer rupe (mm)', 'Lochdurchmesser (mm)'),
+    ('Mirror axis X (mm)', 'Os zrcaljenja X (mm)', 'Spiegelachse X (mm)'),
+    ('Mirror before generating', 'Zrcali prije generiranja', 'Vor Erzeugung spiegeln'),
+    ('Mirror for second side', 'Zrcaljenje za drugu stranu', 'Spiegeln für zweite Seite'),
+    ('Peck depth (mm)', 'Dubina koraka bušenja (mm)', 'Pecking-Tiefe (mm)'),
+    ('Registration holes program generated.', 'Program za referentne rupe generiran.', 'Passloch-Programm erzeugt.')
   );

@@ -97,6 +97,18 @@ function ParseGerberLines(const ALines: TGerberStringArray;
 function ParseGerberNumber(const AStrNumber: string; AFracDigits: Integer): Double;
 function GerberStrToFloat(const AStr: string): Double;
 
+{ MirrorFeaturesX: plan Phase 40 - reflects every already-parsed feature's
+  own points around the vertical line X = AAxisX (X' := 2*AAxisX - X, Y
+  unchanged), for generating a second PCB side's toolpath so it lands
+  correctly once the board is physically flipped around dowel pins at
+  that same X. A gakPolygon aperture's own Rotation is negated too - a
+  reflection reverses a rotation's sense, so a regular-polygon pad
+  mirrors exactly rather than only approximately. Any resulting winding-
+  order flip on closed regions needs no handling here: Isolate mode's
+  own NormalizeWindingForOffset already tolerates arbitrary input
+  winding, and Draw mode never depends on winding at all. }
+function MirrorFeaturesX(const AFeatures: TGerberFeatureArray; AAxisX: Double): TGerberFeatureArray;
+
 implementation
 
 const
@@ -890,6 +902,25 @@ begin
       AWarnings := warnings.Items;
       Result := False;
     end;
+  end;
+end;
+
+function MirrorFeaturesX(const AFeatures: TGerberFeatureArray; AAxisX: Double): TGerberFeatureArray;
+var
+  i, p: Integer;
+begin
+  SetLength(Result, Length(AFeatures));
+  for i := 0 to High(AFeatures) do
+  begin
+    Result[i] := AFeatures[i];
+    SetLength(Result[i].Points, Length(AFeatures[i].Points));
+    for p := 0 to High(AFeatures[i].Points) do
+    begin
+      Result[i].Points[p].X := 2 * AAxisX - AFeatures[i].Points[p].X;
+      Result[i].Points[p].Y := AFeatures[i].Points[p].Y;
+    end;
+    if AFeatures[i].Aperture.Kind = gakPolygon then
+      Result[i].Aperture.Rotation := -AFeatures[i].Aperture.Rotation;
   end;
 end;
 
