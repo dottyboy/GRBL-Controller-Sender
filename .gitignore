@@ -30,6 +30,7 @@ tools/*
 !tools/freecad-macro/
 !tools/kicad-plugin/
 !tools/onnxruntime/
+tools/onnxruntime/cache/
 
 # Internal status summary - for us, not for the repo
 STATUS.md

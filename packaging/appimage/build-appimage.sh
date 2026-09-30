@@ -105,6 +105,41 @@ exec "$HERE/usr/bin/GRBL-Controller-Sender" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
+# Phase 23's depth-map feature needs two files neither vendored into this
+# repo nor shipped by any distro package: the ONNX Runtime C library and
+# the depth-anything-v2-small model weights. Bundled here, cached under
+# tools/onnxruntime/cache/ (gitignored) so re-running this script doesn't
+# re-download ~115MB every time. Placed in onnx-models/ right next to the
+# executable - same "ExtractFilePath(ParamStr(0)) + '<name>' + PathDelim"
+# convention src/ui/ufirmwarebuilderframe.pas already uses for references/,
+# so it resolves identically whether run from an AppImage's usr/bin/ or a
+# plain dev build's project root.
+ONNX_CACHE="$ROOT_DIR/tools/onnxruntime/cache"
+ONNXRUNTIME_VERSION="1.30.0"
+ONNXRUNTIME_TGZ="onnxruntime-linux-x64-$ONNXRUNTIME_VERSION.tgz"
+ONNXRUNTIME_URL="https://github.com/microsoft/onnxruntime/releases/download/v$ONNXRUNTIME_VERSION/$ONNXRUNTIME_TGZ"
+DEPTH_MODEL_URL="https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model.onnx"
+
+mkdir -p "$ONNX_CACHE"
+
+if [ ! -f "$ONNX_CACHE/libonnxruntime.so.$ONNXRUNTIME_VERSION" ]; then
+  echo "fetching ONNX Runtime $ONNXRUNTIME_VERSION (cached afterward)..."
+  curl -sL --fail -o "$ONNX_CACHE/$ONNXRUNTIME_TGZ" "$ONNXRUNTIME_URL"
+  tar xzf "$ONNX_CACHE/$ONNXRUNTIME_TGZ" -C "$ONNX_CACHE" \
+    "onnxruntime-linux-x64-$ONNXRUNTIME_VERSION/lib/libonnxruntime.so.$ONNXRUNTIME_VERSION"
+  mv "$ONNX_CACHE/onnxruntime-linux-x64-$ONNXRUNTIME_VERSION/lib/libonnxruntime.so.$ONNXRUNTIME_VERSION" "$ONNX_CACHE/"
+  rm -rf "$ONNX_CACHE/onnxruntime-linux-x64-$ONNXRUNTIME_VERSION" "$ONNX_CACHE/$ONNXRUNTIME_TGZ"
+fi
+
+if [ ! -f "$ONNX_CACHE/depth-anything-v2-small.onnx" ]; then
+  echo "fetching depth-anything-v2-small.onnx (~99MB, cached afterward)..."
+  curl -sL --fail -o "$ONNX_CACHE/depth-anything-v2-small.onnx" "$DEPTH_MODEL_URL"
+fi
+
+mkdir -p "$APPDIR/usr/bin/onnx-models"
+cp "$ONNX_CACHE/libonnxruntime.so.$ONNXRUNTIME_VERSION" "$APPDIR/usr/bin/onnx-models/libonnxruntime.so"
+cp "$ONNX_CACHE/depth-anything-v2-small.onnx" "$APPDIR/usr/bin/onnx-models/depth-anything-v2-small.onnx"
+
 "$TOOLS_DIR/appimagetool-x86_64.AppImage" "$APPDIR" "$ROOT_DIR/GRBL-Controller-Sender-x86_64.AppImage"
 
 echo "done: $ROOT_DIR/GRBL-Controller-Sender-x86_64.AppImage"

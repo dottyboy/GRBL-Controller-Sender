@@ -188,10 +188,14 @@ reconstructed later.
   hand-transcribed) to guarantee every field lands at its correct byte offset. Verified
   end-to-end: a real depth-estimation model run through this binding was compared
   byte-for-byte against the same model run through Python's own `onnxruntime` package on
-  an identical input tensor (max abs diff: 0.0). **Distribution note (open item):** the
-  actual `libonnxruntime.so` binary this unit loads at runtime still needs a packaging
-  decision (bundle alongside the AppImage vs. document as a separate download) - not yet
-  made as of this writing.
+  an identical input tensor (max abs diff: 0.0). **Distribution:** bundled directly
+  inside the AppImage at `usr/bin/onnx-models/libonnxruntime.so` by
+  `packaging/appimage/build-appimage.sh` (downloaded fresh from ONNX Runtime's own
+  official GitHub release asset, cached under `tools/onnxruntime/cache/` - gitignored,
+  not re-downloaded on every build) - never vendored into this git repository itself. A
+  plain (non-AppImage) dev build looks for the same `onnx-models/` folder next to its
+  own executable (`udepthmap.pas`'s `DefaultOnnxRuntimeLibPath`), so it's a manual
+  one-time copy for anyone building from source directly.
 
 ### depth-anything-v2-small (Apache-2.0)
 
@@ -208,10 +212,11 @@ reconstructed later.
   `pixel_values` `[1,3,518,518]` float32, output `predicted_depth` `[1,518,518]`
   float32 - shapes verified directly from the `.onnx` file's own graph via Python's
   `onnx` package, not guessed) for monocular depth estimation. The model weights
-  themselves (~99MB) are a runtime dependency downloaded by the user/build process, not
-  vendored into this git repository. **Distribution note (open item):** same as ONNX
-  Runtime above - where the `.onnx` file itself should live at install/run time isn't
-  decided yet.
+  (~99MB) are a runtime dependency, not vendored into this git repository. **Distribution:**
+  same mechanism as ONNX Runtime above - bundled at
+  `usr/bin/onnx-models/depth-anything-v2-small.onnx` by `build-appimage.sh` (fetched
+  from HuggingFace, cached locally), or a manual one-time copy into the same
+  `onnx-models/` folder for a plain dev build.
 
 ### MiDaS (MIT) / GIMP-ML (third-party GIMP plugin, license varies by fork)
 

@@ -60,6 +60,18 @@ function GenerateDepthMap(const APhotoPath, AModelPath, AOnnxRuntimeLibPath: str
 
 function DepthAt(const AImage: TDepthMapImage; AX, AY: Integer): Byte; inline;
 
+{ Where this feature's two non-vendored runtime dependencies live: an
+  `onnx-models` folder right next to the running executable - same
+  "ExtractFilePath(ParamStr(0)) + '<name>' + PathDelim" convention
+  src/ui/ufirmwarebuilderframe.pas already uses for its own `references/`
+  folder, so it resolves identically whether run from a plain dev build
+  (project root) or packaging/appimage/build-appimage.sh's AppImage
+  (which populates this exact folder inside usr/bin/). Neither file is
+  vendored into this git repo (~16MB/~99MB) - see that script and
+  THIRD-PARTY-NOTICES.md's Phase 23 section for where they come from. }
+function DefaultOnnxRuntimeLibPath: string;
+function DefaultDepthModelPath: string;
+
 { The three pure numeric steps of the pipeline above, exposed so they can
   be standalone-tested (against the Python reference dumps in
   tools/onnxruntime/) without needing BGRABitmap/ONNX Runtime at all - see
@@ -88,6 +100,21 @@ implementation
 function DepthAt(const AImage: TDepthMapImage; AX, AY: Integer): Byte;
 begin
   Result := AImage.Pixels[AY * AImage.Width + AX];
+end;
+
+function OnnxModelsDir: string;
+begin
+  Result := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + 'onnx-models' + PathDelim;
+end;
+
+function DefaultOnnxRuntimeLibPath: string;
+begin
+  Result := OnnxModelsDir + 'libonnxruntime.so';
+end;
+
+function DefaultDepthModelPath: string;
+begin
+  Result := OnnxModelsDir + 'depth-anything-v2-small.onnx';
 end;
 
 procedure PreprocessToTensor(const ARGB: TRGBImage; var AOut: array of Single);

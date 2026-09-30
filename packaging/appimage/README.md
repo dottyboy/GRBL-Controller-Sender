@@ -29,6 +29,10 @@ bash packaging/appimage/build-appimage.sh
 
 Output: `GRBL-Controller-Sender-x86_64.AppImage` in the project root
 (gitignored - attach it to a GitHub release instead of committing it).
+~134MB - the first build downloads `libonnxruntime.so` (~29MB) and
+`depth-anything-v2-small.onnx` (~99MB) for Phase 23's depth-map feature
+and caches them under `tools/onnxruntime/cache/` (gitignored), so later
+rebuilds don't re-fetch them.
 
 ## Why not `linuxdeploy-plugin-qt`
 
@@ -50,8 +54,14 @@ need to switch since this one is already verified working.
 
 ```sh
 ./GRBL-Controller-Sender-x86_64.AppImage &
-wmctrl -l | grep -i grbl   # confirm the window actually opened
+sleep 3
+pgrep -af 'mount_GRBL.*usr/bin/GRBL-Controller-Sender'   # confirm the REAL process is alive
 ```
+
+Check by PID, not by grepping window titles for "grbl" - an unrelated
+already-open window (a browser tab about this repo, an editor, ...) can
+match the title and produce a false "it worked" while the actual process
+crashed on startup.
 
 ## Known portability limits
 
