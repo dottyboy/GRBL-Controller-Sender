@@ -112,7 +112,11 @@ implementation
 constructor TFirmwareBuilderFrame.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FRefsRoot := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + 'References' + PathDelim;
+  // Real on-disk directory is lowercase 'references/' (see the .gitignore
+  // casing fix of the same name) - Linux is case-sensitive, so the old
+  // 'References' here silently found 0 boards even with real uCNC/grblHAL
+  // checkouts present.
+  FRefsRoot := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + 'references' + PathDelim;
   FPioExe := ExpandFileName('~/.local/bin/pio');
   FSetup := TFirmwareSetup.Create;
   FStore := TFirmwareSetupStore.Create;
