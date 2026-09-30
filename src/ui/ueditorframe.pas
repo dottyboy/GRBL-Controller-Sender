@@ -7,21 +7,27 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Dialogs,
   SynEdit,
-  usender, ui18n;
+  usender, ucustombutton, ucustombuttonstore, uheaderfooterpreset,
+  uheaderfooterpresetstore, ui18n;
 
 type
 
   { TEditorFrame }
 
   TEditorFrame = class(TFrame)
+    BtnLoadHeaderFooterPreset: TButton;
     BtnOpen: TButton;
     BtnSave: TButton;
     BtnSaveAs: TButton;
     BtnSend: TButton;
     BtnStop: TButton;
+    CboHeaderFooterPreset: TComboBox;
+    ChkHeaderFooterEnabled: TCheckBox;
     LblFile: TLabel;
+    LblHeaderFooterPreset: TLabel;
     SynEditor: TSynEdit;
     ToolBar: TPanel;
+    procedure BtnLoadHeaderFooterPresetClick(Sender: TObject);
     procedure BtnOpenClick(Sender: TObject);
     procedure BtnSaveClick(Sender: TObject);
     procedure BtnSaveAsClick(Sender: TObject);
@@ -32,8 +38,18 @@ type
     FCurrentFile: string;
     FOpenDialog: TOpenDialog;
     FSaveDialog: TSaveDialog;
+    // Plan Phase 37: plain CNC streaming (this frame's own Send) gains the
+    // same named Header/Footer preset + auto-run-macro capability the
+    // laser path already had - reachable from here too, not laser-only
+    // (the real gap the user caught: "ne samo laser, nego i cnc mora
+    // imati mogućnost").
+    FHFStore: THeaderFooterPresetStore;
+    FHFPresets: THeaderFooterPresetArray;
+    FSelectedHeader, FSelectedFooter: string;
+    FButtonStore: TCustomButtonStore;
     procedure DoSave(const AFileName: string);
     procedure SetCurrentFile(const AFileName: string);
+    procedure RefreshHeaderFooterPresets;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -57,11 +73,49 @@ begin
   FSaveDialog := TSaveDialog.Create(Self);
   FSaveDialog.Filter := FOpenDialog.Filter;
   FSaveDialog.DefaultExt := 'nc';
+
+  FHFStore := THeaderFooterPresetStore.Create(
+    IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'headerfooterpresets.ini');
+  RefreshHeaderFooterPresets;
+  FButtonStore := TCustomButtonStore.Create(
+    IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'custombuttons.ini');
 end;
 
 destructor TEditorFrame.Destroy;
 begin
+  FButtonStore.Free;
+  FHFStore.Free;
   inherited Destroy;
+end;
+
+procedure TEditorFrame.RefreshHeaderFooterPresets;
+var
+  custom: THeaderFooterPresetArray;
+  i, n: Integer;
+begin
+  custom := FHFStore.LoadAll;
+  SetLength(FHFPresets, BuiltInPresetCount + Length(custom));
+  for i := 0 to BuiltInPresetCount - 1 do
+    FHFPresets[i] := GetBuiltInPreset(i);
+  for i := 0 to High(custom) do
+    FHFPresets[BuiltInPresetCount + i] := custom[i];
+
+  CboHeaderFooterPreset.Items.Clear;
+  for n := 0 to High(FHFPresets) do
+    CboHeaderFooterPreset.Items.Add(Format('%s [%s]',
+      [FHFPresets[n].Name, KindName(FHFPresets[n].Kind)]));
+  if CboHeaderFooterPreset.Items.Count > 0 then
+    CboHeaderFooterPreset.ItemIndex := 0;
+end;
+
+procedure TEditorFrame.BtnLoadHeaderFooterPresetClick(Sender: TObject);
+var
+  idx: Integer;
+begin
+  idx := CboHeaderFooterPreset.ItemIndex;
+  if (idx < 0) or (idx > High(FHFPresets)) then Exit;
+  FSelectedHeader := FHFPresets[idx].Header;
+  FSelectedFooter := FHFPresets[idx].Footer;
 end;
 
 procedure TEditorFrame.SetSender(ASender: TSender);
@@ -125,14 +179,49 @@ procedure TEditorFrame.BtnSendClick(Sender: TObject);
 var
   i: Integer;
   line: string;
+  buttons: TCustomButtonArray;
+  startMacroLines, endMacroLines, headerLines, footerLines: TStringList;
 begin
   if FSender = nil then Exit;
-  for i := 0 to SynEditor.Lines.Count - 1 do
-  begin
-    line := Trim(SynEditor.Lines[i]);
-    if line = '' then Continue;
-    if (line[1] = ';') or (Copy(line, 1, 1) = '(') then Continue; // comment
-    FSender.EnqueueGCode(line);
+
+  // Plan Phase 37: the same shared BeginJob/EndJob hook the laser path
+  // uses - auto-run macros fire here too, not just for laser jobs (the
+  // real gap this phase exists to close).
+  buttons := FButtonStore.LoadAll;
+  startMacroLines := TStringList.Create;
+  endMacroLines := TStringList.Create;
+  headerLines := TStringList.Create;
+  footerLines := TStringList.Create;
+  try
+    CombinedAutoRunGCode(buttons, True, startMacroLines);
+    CombinedAutoRunGCode(buttons, False, endMacroLines);
+
+    if ChkHeaderFooterEnabled.Checked then
+    begin
+      headerLines.Text := FSelectedHeader;
+      footerLines.Text := FSelectedFooter;
+    end;
+
+    FSender.BeginJob(startMacroLines);
+    for i := 0 to headerLines.Count - 1 do
+      if Trim(headerLines[i]) <> '' then FSender.EnqueueGCode(headerLines[i]);
+
+    for i := 0 to SynEditor.Lines.Count - 1 do
+    begin
+      line := Trim(SynEditor.Lines[i]);
+      if line = '' then Continue;
+      if (line[1] = ';') or (Copy(line, 1, 1) = '(') then Continue; // comment
+      FSender.EnqueueGCode(line);
+    end;
+
+    for i := 0 to footerLines.Count - 1 do
+      if Trim(footerLines[i]) <> '' then FSender.EnqueueGCode(footerLines[i]);
+    FSender.EndJob(endMacroLines);
+  finally
+    startMacroLines.Free;
+    endMacroLines.Free;
+    headerLines.Free;
+    footerLines.Free;
   end;
 end;
 

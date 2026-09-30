@@ -40,7 +40,7 @@ object CustomButtonFrame: TCustomButtonFrame
       Height = 15
       Top = 34
       Width = 400
-      Caption = 'Each button enqueues its g-code when clicked on the Laser Control tab.'
+      Caption = 'Enqueues its g-code when clicked, or automatically at job Start/End if flagged (click a Start/End cell to toggle).'
     end
   end
   object Grid: TStringGrid
@@ -49,15 +49,18 @@ object CustomButtonFrame: TCustomButtonFrame
     Top = 50
     Width = 700
     Align = alClient
-    ColCount = 2
+    ColCount = 4
     FixedRows = 1
     Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goEditing, goSmoothScroll]
     RowCount = 1
     TabOrder = 1
     OnEditingDone = GridEditingDone
+    OnMouseDown = GridMouseDown
     ColWidths = (
-      150
-      520
+      140
+      380
+      75
+      75
     )
   end
 end

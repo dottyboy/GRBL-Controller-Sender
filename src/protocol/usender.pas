@@ -243,6 +243,19 @@ type
     // own list can be freed right after this call returns.
     procedure BeginLaserJob(ABodyLines, AFooterLines: TStringList; AHeaderCount: Integer);
     procedure EndLaserJob;
+
+    // Plan Phase 37: generic pre/post-job hook, shared by BOTH the laser
+    // path (LaserControlFrame.BtnStartClick) and plain CNC streaming
+    // (TEditorFrame.BtnSendClick) - unlike BeginLaserJob/EndLaserJob,
+    // this does NOT track progress state (Sent/Executed/Target - that
+    // stays laser-specific for now, see Phase 38's own note on why);
+    // it only enqueues whatever pre/post-run macro g-code the caller
+    // hands it, at enqueue time - matching LaserGRBL's own real
+    // ExecuteCustomCode mechanism (fires at program-push time, not at
+    // actual job completion, since a FIFO queue guarantees end-of-job
+    // macros execute last regardless of when they're enqueued).
+    procedure BeginJob(AStartMacroLines: TStrings);
+    procedure EndJob(AEndMacroLines: TStrings);
     function LaserJobProgress: TLaserJobProgress;
     // Resumes the CURRENTLY TRACKED job (FLaserJob, as set up by the last
     // BeginLaserJob call) from AFromLine onward, via ustatebuilder.pas's
@@ -849,6 +862,26 @@ begin
   FLaserJob.BodyLines := nil;
   FLaserBodyLinesOwned.Clear;
   FLaserFooterLinesOwned.Clear;
+end;
+
+procedure TSender.BeginJob(AStartMacroLines: TStrings);
+var
+  i: Integer;
+begin
+  if AStartMacroLines = nil then Exit;
+  for i := 0 to AStartMacroLines.Count - 1 do
+    if Trim(AStartMacroLines[i]) <> '' then
+      EnqueueGCode(AStartMacroLines[i]);
+end;
+
+procedure TSender.EndJob(AEndMacroLines: TStrings);
+var
+  i: Integer;
+begin
+  if AEndMacroLines = nil then Exit;
+  for i := 0 to AEndMacroLines.Count - 1 do
+    if Trim(AEndMacroLines[i]) <> '' then
+      EnqueueGCode(AEndMacroLines[i]);
 end;
 
 function TSender.LaserJobProgress: TLaserJobProgress;

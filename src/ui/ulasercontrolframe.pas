@@ -19,7 +19,8 @@ uses
   Classes, SysUtils, Math, Forms, Controls, Graphics, StdCtrls, ExtCtrls, ComCtrls,
   Spin, ulasercommand, ulasersender, usender, uappconfig,
   usafetycountdownform, uchecklist, uchecklistform, umaterialpreset,
-  ucustombutton, ucustombuttonstore, ui18n;
+  ucustombutton, ucustombuttonstore, uheaderfooterpreset,
+  uheaderfooterpresetstore, ui18n;
 
 type
 
@@ -28,9 +29,11 @@ type
   TLaserControlFrame = class(TFrame)
     BtnAbort: TButton;
     BtnEditMacros: TButton;
+    BtnLoadHeaderFooterPreset: TButton;
     BtnPauseResume: TButton;
     BtnStart: TButton;
     BtnTestFire: TButton;
+    CboHeaderFooterPreset: TComboBox;
     ChkArmTestFire: TCheckBox;
     ChkAutoCooling: TCheckBox;
     EdCoolOff: TSpinEdit;
@@ -61,6 +64,7 @@ type
     TrackSpindle: TTrackBar;
     procedure BtnAbortClick(Sender: TObject);
     procedure BtnEditMacrosClick(Sender: TObject);
+    procedure BtnLoadHeaderFooterPresetClick(Sender: TObject);
     procedure BtnPauseResumeClick(Sender: TObject);
     procedure BtnStartClick(Sender: TObject);
     procedure BtnTestFireClick(Sender: TObject);
@@ -83,8 +87,15 @@ type
     FChecklist: TChecklist;
     FButtons: TCustomButtonArray;
     FOnEditMacros: TNotifyEvent;
+    // Plan Phase 37: FHFPresets[0..BuiltInPresetCount-1] are the built-in
+    // set (uheaderfooterpreset.pas), the rest are the user's own saved
+    // custom ones (FHFStore) - one combined array so CboHeaderFooterPreset's
+    // ItemIndex maps directly, no separate "which list" bookkeeping needed.
+    FHFStore: THeaderFooterPresetStore;
+    FHFPresets: THeaderFooterPresetArray;
     procedure MacroButtonClick(Sender: TObject);
     procedure SetStatus(const AMsg: string; AIsError: Boolean);
+    procedure RefreshHeaderFooterPresets;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -145,6 +156,10 @@ begin
     IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'custombuttons.ini');
   RefreshMacroButtons;
 
+  FHFStore := THeaderFooterPresetStore.Create(
+    IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'headerfooterpresets.ini');
+  RefreshHeaderFooterPresets;
+
   FChecklist := TChecklist.Create(
     IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'checklist.ini');
   FChecklist.Load;
@@ -154,9 +169,46 @@ end;
 destructor TLaserControlFrame.Destroy;
 begin
   FChecklist.Free;
+  FHFStore.Free;
   FButtonStore.Free;
   FProgram.Free;
   inherited Destroy;
+end;
+
+procedure TLaserControlFrame.RefreshHeaderFooterPresets;
+var
+  custom: THeaderFooterPresetArray;
+  i, n: Integer;
+begin
+  custom := FHFStore.LoadAll;
+  SetLength(FHFPresets, BuiltInPresetCount + Length(custom));
+  for i := 0 to BuiltInPresetCount - 1 do
+    FHFPresets[i] := GetBuiltInPreset(i);
+  for i := 0 to High(custom) do
+    FHFPresets[BuiltInPresetCount + i] := custom[i];
+
+  CboHeaderFooterPreset.Items.Clear;
+  for n := 0 to High(FHFPresets) do
+    CboHeaderFooterPreset.Items.Add(Format('%s [%s]',
+      [FHFPresets[n].Name, KindName(FHFPresets[n].Kind)]));
+  if CboHeaderFooterPreset.Items.Count > 0 then
+    CboHeaderFooterPreset.ItemIndex := 0;
+end;
+
+procedure TLaserControlFrame.BtnLoadHeaderFooterPresetClick(Sender: TObject);
+var
+  idx: Integer;
+begin
+  idx := CboHeaderFooterPreset.ItemIndex;
+  if (idx < 0) or (idx > High(FHFPresets)) then Exit;
+  if Trim(FHFPresets[idx].Header) <> '' then
+    MemoHeader.Lines.Text := FHFPresets[idx].Header
+  else
+    MemoHeader.Lines.Clear;
+  if Trim(FHFPresets[idx].Footer) <> '' then
+    MemoFooter.Lines.Text := FHFPresets[idx].Footer
+  else
+    MemoFooter.Lines.Clear;
 end;
 
 procedure TLaserControlFrame.SetSender(ASender: TSender);
@@ -188,6 +240,7 @@ var
   skipCountdown: Boolean;
   i: Integer;
   hasBody: Boolean;
+  StartMacroLines, EndMacroLines: TStringList;
 begin
   if (FSender = nil) or (not FSender.Connected) then
   begin
@@ -248,7 +301,25 @@ begin
 
   FIsPaused := False;
   BtnPauseResume.Caption := T('Pause');
-  RunLaserProgram(FSender, FProgram, SpinPasses.Value);
+
+  // Plan Phase 37: auto-run macros, fired at enqueue time (matching
+  // LaserGRBL's own real ExecuteCustomCode timing) via the shared
+  // TSender.BeginJob/EndJob hook - BeginJob's lines land on the queue
+  // BEFORE RunLaserProgram's own header/body/footer, EndJob's land
+  // after, since the queue is FIFO.
+  StartMacroLines := TStringList.Create;
+  EndMacroLines := TStringList.Create;
+  try
+    CombinedAutoRunGCode(FButtons, True, StartMacroLines);
+    CombinedAutoRunGCode(FButtons, False, EndMacroLines);
+    FSender.BeginJob(StartMacroLines);
+    RunLaserProgram(FSender, FProgram, SpinPasses.Value);
+    FSender.EndJob(EndMacroLines);
+  finally
+    StartMacroLines.Free;
+    EndMacroLines.Free;
+  end;
+
   SetStatus(T('Running'), False);
   RefreshState;
 end;

@@ -23,6 +23,8 @@ uses
 const
   COL_NAME = 0;
   COL_GCODE = 1;
+  COL_RUNSTART = 2;
+  COL_RUNEND = 3;
 
 type
 
@@ -37,6 +39,8 @@ type
     procedure BtnAddClick(Sender: TObject);
     procedure BtnDeleteClick(Sender: TObject);
     procedure GridEditingDone(Sender: TObject);
+    procedure GridMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
   private
     FStore: TCustomButtonStore;
     procedure LoadButtons;
@@ -57,6 +61,8 @@ begin
   inherited Create(AOwner);
   Grid.Cells[COL_NAME, 0] := 'Name';
   Grid.Cells[COL_GCODE, 0] := 'G-code (use | to separate lines)';
+  Grid.Cells[COL_RUNSTART, 0] := 'Start';
+  Grid.Cells[COL_RUNEND, 0] := 'End';
   FStore := TCustomButtonStore.Create(
     IncludeTrailingPathDelimiter(GetAppConfigDir(False)) + 'custombuttons.ini');
   LoadButtons;
@@ -79,6 +85,8 @@ begin
   begin
     Grid.Cells[COL_NAME, i + 1] := buttons[i].Name;
     Grid.Cells[COL_GCODE, i + 1] := StringReplace(buttons[i].GCode, LineEnding, '|', [rfReplaceAll]);
+    if buttons[i].RunOnJobStart then Grid.Cells[COL_RUNSTART, i + 1] := 'Y' else Grid.Cells[COL_RUNSTART, i + 1] := '';
+    if buttons[i].RunOnJobEnd then Grid.Cells[COL_RUNEND, i + 1] := 'Y' else Grid.Cells[COL_RUNEND, i + 1] := '';
   end;
 end;
 
@@ -94,6 +102,8 @@ begin
     if Trim(Grid.Cells[COL_NAME, row]) = '' then Continue;
     buttons[n].Name := Grid.Cells[COL_NAME, row];
     buttons[n].GCode := StringReplace(Grid.Cells[COL_GCODE, row], '|', LineEnding, [rfReplaceAll]);
+    buttons[n].RunOnJobStart := Grid.Cells[COL_RUNSTART, row] = 'Y';
+    buttons[n].RunOnJobEnd := Grid.Cells[COL_RUNEND, row] = 'Y';
     Inc(n);
   end;
   SetLength(buttons, n);
@@ -118,6 +128,20 @@ end;
 
 procedure TCustomButtonFrame.GridEditingDone(Sender: TObject);
 begin
+  SaveButtons;
+end;
+
+procedure TCustomButtonFrame.GridMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var
+  col, row: Integer;
+begin
+  Grid.MouseToCell(X, Y, col, row);
+  if (row < 1) or not (col in [COL_RUNSTART, COL_RUNEND]) then Exit;
+  if Grid.Cells[col, row] = 'Y' then
+    Grid.Cells[col, row] := ''
+  else
+    Grid.Cells[col, row] := 'Y';
   SaveButtons;
 end;
 

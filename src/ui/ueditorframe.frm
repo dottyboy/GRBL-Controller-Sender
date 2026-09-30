@@ -9,12 +9,12 @@ object EditorFrame: TEditorFrame
   TabOrder = 0
   object ToolBar: TPanel
     Left = 0
-    Height = 34
+    Height = 68
     Top = 0
     Width = 600
     Align = alTop
     BevelOuter = bvNone
-    ClientHeight = 34
+    ClientHeight = 68
     ClientWidth = 600
     TabOrder = 0
     object BtnOpen: TButton
@@ -69,11 +69,43 @@ object EditorFrame: TEditorFrame
       Width = 56
       Caption = '(untitled)'
     end
+    object LblHeaderFooterPreset: TLabel
+      Left = 4
+      Height = 15
+      Top = 40
+      Width = 90
+      Caption = 'Header/Footer'
+    end
+    object CboHeaderFooterPreset: TComboBox
+      Left = 100
+      Height = 24
+      Top = 36
+      Width = 200
+      Style = csDropDownList
+      TabOrder = 5
+    end
+    object BtnLoadHeaderFooterPreset: TButton
+      Left = 304
+      Height = 24
+      Top = 36
+      Width = 64
+      Caption = 'Load'
+      OnClick = BtnLoadHeaderFooterPresetClick
+      TabOrder = 6
+    end
+    object ChkHeaderFooterEnabled: TCheckBox
+      Left = 376
+      Height = 19
+      Top = 38
+      Width = 130
+      Caption = 'Apply on Send'
+      TabOrder = 7
+    end
   end
   object SynEditor: TSynEdit
     Left = 0
-    Height = 366
-    Top = 34
+    Height = 332
+    Top = 68
     Width = 600
     Align = alClient
     Font.Name = 'Monospace'

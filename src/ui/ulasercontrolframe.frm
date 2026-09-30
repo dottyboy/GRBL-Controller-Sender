@@ -22,6 +22,23 @@ object LaserControlFrame: TLaserControlFrame
     ScrollBars = ssVertical
     TabOrder = 0
   end
+  object CboHeaderFooterPreset: TComboBox
+    Left = 100
+    Height = 24
+    Top = 4
+    Width = 180
+    Style = csDropDownList
+    TabOrder = 10
+  end
+  object BtnLoadHeaderFooterPreset: TButton
+    Left = 286
+    Height = 24
+    Top = 4
+    Width = 64
+    Caption = 'Load'
+    OnClick = BtnLoadHeaderFooterPresetClick
+    TabOrder = 11
+  end
   object LblFooter: TLabel
     Left = 356
     Height = 15

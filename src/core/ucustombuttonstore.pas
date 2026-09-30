@@ -55,6 +55,8 @@ begin
       Result[i].Name := ini.ReadString(sections[i], 'name', sections[i]);
       Result[i].GCode := StringReplace(ini.ReadString(sections[i], 'gcode', ''),
         GCODE_LINE_SEP, LineEnding, [rfReplaceAll]);
+      Result[i].RunOnJobStart := ini.ReadBool(sections[i], 'runonjobstart', False);
+      Result[i].RunOnJobEnd := ini.ReadBool(sections[i], 'runonjobend', False);
     end;
   finally
     sections.Free;
@@ -80,6 +82,8 @@ begin
       ini.WriteString(section, 'name', AButtons[i].Name);
       ini.WriteString(section, 'gcode',
         StringReplace(AButtons[i].GCode, LineEnding, GCODE_LINE_SEP, [rfReplaceAll]));
+      ini.WriteBool(section, 'runonjobstart', AButtons[i].RunOnJobStart);
+      ini.WriteBool(section, 'runonjobend', AButtons[i].RunOnJobEnd);
     end;
   finally
     ini.Free;
