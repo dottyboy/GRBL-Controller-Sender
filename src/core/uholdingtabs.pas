@@ -94,7 +94,6 @@ var
   tabStarts, tabEnds: array of Double;
   boundaries: array of Double; // every tab start/end, sorted, arc-length positions
   boundaryIsTabStart: array of Boolean;
-  segStart: Double;
   segIsTab: Boolean;
   cur: Double;
   seg: TTabSegment;

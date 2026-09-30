@@ -528,11 +528,36 @@ begin
     Result[i] := -Min(ADepthPerPass * (i + 1), ATotalDepth);
 end;
 
+{ EmitCNCPointSequence: the shared per-point-sequence CNC emitter both
+  AppendIsolationGCode (always-closed offset rings) and AppendDrawGCode
+  (open strokes or closed regions/flashes, per APoints' own AClosed) walk
+  once per requested depth - plunge, cut through every point, optionally
+  close back to the start, retract to safe Z. Extracted rather than left
+  duplicated between the two once Phase 39's Draw strategy made the same
+  G0/G1-per-depth shape show up a second time with the only real
+  difference being the closing segment's own condition. }
+procedure EmitCNCPointSequence(const APoints: TGerberPointArray; AClosed: Boolean;
+  const ACfg: TIsolationConfig; const ADepths: TIsoDoubleArray; ALines: TStrings);
+var
+  d, i: Integer;
+begin
+  for d := 0 to High(ADepths) do
+  begin
+    ALines.Add(Format('G0X%.4fY%.4f', [APoints[0].X, APoints[0].Y], GInvFS));
+    ALines.Add(Format('G1Z%.4fF%g', [ADepths[d], ACfg.PlungeRate], GInvFS));
+    for i := 1 to High(APoints) do
+      ALines.Add(Format('G1X%.4fY%.4fF%g', [APoints[i].X, APoints[i].Y, ACfg.FeedRate], GInvFS));
+    if AClosed then
+      ALines.Add(Format('G1X%.4fY%.4fF%g', [APoints[0].X, APoints[0].Y, ACfg.FeedRate], GInvFS));
+    ALines.Add(Format('G0Z%.4f', [ACfg.SafeZ], GInvFS));
+  end;
+end;
+
 procedure AppendIsolationGCode(const APasses: TIsoPassArray;
   const ACfg: TIsolationConfig; ALines: TStrings);
 var
   depths: TIsoDoubleArray;
-  p, l, d, i: Integer;
+  p, l: Integer;
   loop: TIsoLoop;
 begin
   ValidateIsolationConfig(ACfg);
@@ -552,16 +577,8 @@ begin
     begin
       loop := APasses[p][l];
       if Length(loop) < 2 then Continue;
-      for d := 0 to High(depths) do
-      begin
-        ALines.Add(Format('G0X%.4fY%.4f', [loop[0].X, loop[0].Y], GInvFS));
-        ALines.Add(Format('G1Z%.4fF%g', [depths[d], ACfg.PlungeRate], GInvFS));
-        for i := 1 to High(loop) do
-          ALines.Add(Format('G1X%.4fY%.4fF%g', [loop[i].X, loop[i].Y, ACfg.FeedRate], GInvFS));
-        // close the ring back to its own start point
-        ALines.Add(Format('G1X%.4fY%.4fF%g', [loop[0].X, loop[0].Y, ACfg.FeedRate], GInvFS));
-        ALines.Add(Format('G0Z%.4f', [ACfg.SafeZ], GInvFS));
-      end;
+      // an offset ring is always closed
+      EmitCNCPointSequence(loop, True, ACfg, depths, ALines);
     end;
   end;
 
@@ -653,7 +670,7 @@ procedure AppendDrawGCode(const APaths: TIsoPathArray;
   const ACfg: TIsolationConfig; ALines: TStrings);
 var
   depths: TIsoDoubleArray;
-  pth, d, i: Integer;
+  pth: Integer;
   path: TIsoPath;
 begin
   ValidateIsolationConfig(ACfg);
@@ -670,16 +687,7 @@ begin
   begin
     path := APaths[pth];
     if Length(path.Points) < 2 then Continue;
-    for d := 0 to High(depths) do
-    begin
-      ALines.Add(Format('G0X%.4fY%.4f', [path.Points[0].X, path.Points[0].Y], GInvFS));
-      ALines.Add(Format('G1Z%.4fF%g', [depths[d], ACfg.PlungeRate], GInvFS));
-      for i := 1 to High(path.Points) do
-        ALines.Add(Format('G1X%.4fY%.4fF%g', [path.Points[i].X, path.Points[i].Y, ACfg.FeedRate], GInvFS));
-      if path.Closed then
-        ALines.Add(Format('G1X%.4fY%.4fF%g', [path.Points[0].X, path.Points[0].Y, ACfg.FeedRate], GInvFS));
-      ALines.Add(Format('G0Z%.4f', [ACfg.SafeZ], GInvFS));
-    end;
+    EmitCNCPointSequence(path.Points, path.Closed, ACfg, depths, ALines);
   end;
 
   if ACfg.SpindleRPM > 0 then
