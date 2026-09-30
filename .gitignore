@@ -14,6 +14,7 @@ __pycache__/
 
 # Personal editor/IDE config - not shared project config, machine-specific.
 .vscode/
+*.ctps
 
 # reference-only clones of forked upstream projects, not part of this project's own repo
 references/
