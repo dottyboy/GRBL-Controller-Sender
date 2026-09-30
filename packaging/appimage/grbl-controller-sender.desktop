@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GRBL Controller Sender
+GenericName=CNC/Laser Controller
+Comment=GRBL/grblHAL/FluidNC sender and CNC/laser toolpath workbench
+Exec=GRBL-Controller-Sender
+Icon=grbl-controller-sender
+Categories=Utility;Engineering;
+Terminal=false

@@ -32,3 +32,8 @@ tools/*
 
 # Internal status summary - for us, not for the repo
 STATUS.md
+
+# AppImage build output - rebuildable via packaging/appimage/build-appimage.sh,
+# too large/machine-specific for the repo (bundles host Qt5/X11 libs)
+*.AppImage
+packaging/appimage/AppDir/
