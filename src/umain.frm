@@ -1,21 +1,102 @@
-object Form1: TForm1
-  Left = 0
-  Height = 600
-  Top = 0
-  Width = 900
+object MainForm: TMainForm
+  Left = 516
+  Height = 664
+  Top = 213
+  Width = 1259
   Caption = 'GRBL Controller Sender'
-  ClientHeight = 600
-  ClientWidth = 900
-  Position = poScreenCenter
+  ClientHeight = 664
+  ClientWidth = 1259
   KeyPreview = True
+  Menu = MainMenu1
+  Position = poScreenCenter
+  LCLVersion = '9.0'
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
-  LCLVersion = '4.8.0.0'
-  Menu = MainMenu1
+  object plStatusBarEx1: TplStatusBarEx
+    Left = 0
+    Height = 32
+    Top = 632
+    Width = 1259
+    Panels = <>
+    SizeGrip = True
+    SimplePanel = True
+    UseSystemFont = True
+    Color = clSkyBlue
+    Constraints.MaxHeight = 32
+    Constraints.MinHeight = 32
+    ParentColor = False
+    ParentFont = False
+  end
+  object RxClock1: TRxClock
+    AnchorSideTop.Control = plStatusBarEx1
+    AnchorSideRight.Control = plStatusBarEx1
+    AnchorSideRight.Side = asrBottom
+    AnchorSideBottom.Control = plStatusBarEx1
+    AnchorSideBottom.Side = asrBottom
+    Left = 1107
+    Height = 26
+    Top = 636
+    Width = 150
+    Anchors = [akTop, akRight, akBottom]
+    Constraints.MaxWidth = 150
+    Constraints.MinWidth = 150
+    Color = clMoneyGreen
+    Font.Height = -19
+    Font.Name = 'JetBrains Mono'
+    ParentColor = False
+    ParentFont = False
+  end
+  object JobProgress: TProgressBar
+    AnchorSideTop.Control = plStatusBarEx1
+    AnchorSideRight.Control = RxClock1
+    AnchorSideBottom.Control = plStatusBarEx1
+    AnchorSideBottom.Side = asrBottom
+    Left = 899
+    Height = 24
+    Top = 636
+    Width = 200
+    Anchors = [akTop, akRight, akBottom]
+    BorderSpacing.Top = 4
+    BorderSpacing.Right = 8
+    BorderSpacing.Bottom = 4
+    BorderWidth = 1
+    Color = clMoneyGreen
+    Constraints.MaxWidth = 200
+    Constraints.MinWidth = 200
+    DragMode = dmAutomatic
+    Font.Height = -15
+    Font.Name = 'JetBrains Mono'
+    Font.Style = [fsBold]
+    ParentColor = False
+    ParentFont = False
+    Smooth = True
+    Step = 1
+    TabOrder = 2
+    BarShowText = True
+  end
+  object JobStatusText: TLabel
+    AnchorSideTop.Control = JobProgress
+    AnchorSideRight.Control = JobProgress
+    AnchorSideBottom.Control = JobProgress
+    AnchorSideBottom.Side = asrBottom
+    Left = 572
+    Height = 24
+    Top = 636
+    Width = 319
+    Align = alCustom
+    Alignment = taRightJustify
+    Anchors = [akTop, akRight, akBottom]
+    BorderSpacing.Right = 8
+    Caption = 'Idle/Connected/Progress/STOP'
+    Font.Height = -19
+    Font.Name = 'JetBrains Mono'
+    Font.Style = [fsBold]
+    ParentFont = False
+  end
   object MainMenu1: TMainMenu
-    left = 24
-    top = 24
+    Left = 24
+    Top = 24
     object MenuFile: TMenuItem
       Caption = '&File'
       object MenuFileExit: TMenuItem
@@ -42,23 +123,22 @@ object Form1: TForm1
       Caption = '&Language'
       object MenuLangEN: TMenuItem
         Caption = 'English'
-        RadioItem = True
         GroupIndex = 1
-        Tag = 0
+        RadioItem = True
         OnClick = MenuLangClick
       end
       object MenuLangHR: TMenuItem
-        Caption = 'Hrvatski'
-        RadioItem = True
-        GroupIndex = 1
         Tag = 1
+        Caption = 'Hrvatski'
+        GroupIndex = 1
+        RadioItem = True
         OnClick = MenuLangClick
       end
       object MenuLangDE: TMenuItem
-        Caption = 'Deutsch'
-        RadioItem = True
-        GroupIndex = 1
         Tag = 2
+        Caption = 'Deutsch'
+        GroupIndex = 1
+        RadioItem = True
         OnClick = MenuLangClick
       end
     end
