@@ -6,8 +6,12 @@ warranty" disclaimer — it applies to everything below.
 
 **Coverage note**: all 18 real tabs across all three groups —
 **Machine**, **Laser**, **Settings & Tools** — are illustrated with
-real screenshots below. Only the stretch-goal modal dialogs (see "What's
-not here yet") aren't covered yet.
+real screenshots below. Six more tabs (WiFi Config, Axis Calibration,
+Parametric Tool, Pre-flight Checklist, Safety Countdown, Resume Job —
+see their own sections further down) exist but are described in text
+only so far, no screenshots yet — they used to be popup dialogs and
+were rebuilt as tabs later (see the note at the end of "Connecting"
+for why), so they're newer than the rest of this guide.
 
 ## The three tab groups
 
@@ -25,7 +29,18 @@ boards, GRBL 0.9 for older ones, or Smoothieware/g2core), then **Open**.
 Once connected, the board info line shows what was detected; **Refresh
 Info** re-queries it. The **Profile** dropdown lets you pick a known
 machine from the built-in catalog to fill in travel limits — see
-"Send Travel Limits" under Spoilboard, further down.
+"Send Travel Limits" under Spoilboard, further down. **WiFi...** opens
+the **WiFi Config** tab (see its own section below).
+
+A note on WiFi Config, Axis Calibration (**Tools** menu), Parametric
+Tool (**Parametric tool...** on the Tools tab), Pre-flight Checklist
+and Safety Countdown (both automatic, right before a laser job starts)
+and Resume Job (automatic, if a laser job hits an Alarm mid-run): all
+six used to be popup dialogs. They were rebuilt as tabs in a later
+session because this app's own test environment hit a real crash
+creating a second application window at all — switching to a tab
+instead of a popup sidesteps that entirely, and is what you'll actually
+see doing any of these six things, regardless of your own setup.
 
 ## Control tab
 
@@ -156,6 +171,21 @@ RECEIVED traffic, not lines this app sends out — check the Editor's own
 status area or the relevant tab's own status message for confirmation
 that something was actually sent.
 
+## WiFi Config tab
+
+Opened via **WiFi...** on the Control tab, not from the group tab row
+directly. **Connect directly (host:port)** builds a `tcp:host:port`
+device string and fills it into Control's own **Port** field — the
+fast path if the board already has a known IP. **Scan local network**
+sweeps a base IP/subnet mask for open ports in the background (Stop
+cancels it mid-sweep); double-click or **Use Selected Result** to fill
+Host/Port from a match, then still use the direct-connect button to
+actually apply it. **Write WiFi credentials to connected board** only
+works while already connected over real USB serial to an Ortur/Longer
+grblHAL board — sends the real `$74`/`$75`/`$WRS`/`$sta/...` commands
+over that connection; watch the Terminal tab for the assigned IP once
+the board reconnects over WiFi.
+
 ## Raster Import tab
 
 ![Raster Import tab](screenshots/raster-import-tab.png)
@@ -231,6 +261,39 @@ surface for a laser run:
   Tools group) to manage the auto-run-capable custom buttons this tab's
   own Start/Abort can trigger.
 
+Clicking **Start** here can hand off to two more tabs before the job
+actually runs, each one a real gate, not just a status display:
+
+## Pre-flight Checklist tab
+
+Shown automatically if the checklist has any items (a fresh install
+already has 4 real defaults: material secured, focus set, ventilation
+on, area clear/laser goggles on) — **Start** jumps here first. Check
+every item to enable **Proceed**; **Add Item**/**Delete** edit the list
+itself (item names persist, the checked state doesn't — the list
+always opens all-unchecked). **Cancel** goes back to Laser Control
+without starting anything.
+
+## Safety Countdown tab
+
+Shown next (after the checklist, if any — skipped entirely once **Do
+not show this again** has been checked here previously), a plain
+count-down from your configured number of seconds before the job
+actually starts sending. **Cancel** aborts; letting it reach zero starts
+the job exactly as if there were no countdown at all.
+
+## Resume Job tab
+
+Not part of the Start flow — shown automatically instead, mid-job, if
+the board reports an Alarm (hard limit, estop, etc.) while a laser job
+is still running. Shows the cause and Executed/Sent/Target line counts,
+then pick where to resume from (beginning / last executed / last sent /
+a specific line number), optionally **Re-home** or **Unlock** first
+(mutually exclusive — re-homing already clears the alarm) and restore
+the work offset if one was active. **Resume** sends the real
+`$H`/`$X`/work-offset g-code and continues the job from that line;
+**Abort Job** stops tracking it as resumable instead.
+
 ## Materials tab
 
 ![Materials tab](screenshots/materials-tab.png)
@@ -248,10 +311,18 @@ instead of re-typing them by hand each time you switch material.
 A simple end-mill/bit table (diameter, flutes, length, stepover,
 comments), persisted between sessions. **Load preset...** fills a row
 from a built-in catalog (real FreeCAD Tool Bit Editor defaults — common
-endmill/V-bit/drill sizes); **Parametric tool...** opens a small wizard
-that builds a fully-specified tool from a shape template (Endmill/Ball
-End/Bull Nose/V-Bit/Drill/Chamfer) plus its own real parameters instead
+endmill/V-bit/drill sizes); **Parametric tool...** jumps to the
+Parametric Tool tab (below) to build one from a shape template instead
 of picking from a fixed size list.
+
+## Parametric Tool tab
+
+Opened via **Parametric tool...** on the Tools tab. Pick a **Shape**
+(Endmill/Ball End/Bull Nose/V-Bit/Drill/Chamfer) — the relevant fields
+for that shape (shank diameter, included angle, tip diameter, corner
+radius) show themselves automatically, pre-filled with sensible
+defaults for the shape. **Add to Tool Table** adds it as a new row on
+the Tools tab and jumps back there; nothing is added until you click it.
 
 ## Settings ($$) tab
 
@@ -306,6 +377,17 @@ CNC — without a manual click.
 Rebind the keyboard-jog shortcuts listed under the Control tab above,
 without hand-editing `hotkeys.ini`.
 
+## Axis Calibration tab
+
+Opened via **Tools → Axis Calibration...**. Pick an **X/Y/Z** axis
+(shows its current `$100`/`$101`/`$102` steps/mm), **Jog +** a known
+distance, hand-measure the actual real-world distance moved and enter
+it, then **Apply to Grbl Config** writes the corrected steps/mm — new
+= current × (requested ÷ measured), the same formula OpenBuilds
+CONTROL's own calibration wizard uses. The jog distance is locked in
+the moment you click Jog, so editing it afterward doesn't silently
+change the math. **Refresh** re-reads the current value from the board.
+
 ## Language
 
 **Language** menu: English, Hrvatski, Deutsch. Switches immediately,
@@ -321,10 +403,12 @@ cosmetic).
 
 ## What's not here yet
 
-- The stretch-goal modal dialogs (parametric tool wizard, resume-job
-  dialog, safety countdown, WiFi config, axis calibration wizard) aren't
-  illustrated with screenshots yet — every tab across all three groups
-  now is.
+- Screenshots for the 6 tabs rebuilt from popup dialogs (WiFi Config,
+  Pre-flight Checklist, Safety Countdown, Resume Job, Axis Calibration,
+  Parametric Tool) — their own sections above are accurate, just not
+  illustrated yet. Resume Job in particular can only be screenshotted
+  with hand-picked sample values, not a real triggered Alarm — the
+  built-in offline test emulator doesn't simulate one.
 
 If something else seems undocumented or behaves differently than
 described here, don't assume it's intentional — open an issue and ask.
