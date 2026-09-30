@@ -1,5 +1,5 @@
 const
-  Catalog: array[0..268] of array[0..2] of string = (
+  Catalog: array[0..293] of array[0..2] of string = (
     ('&File', '&Datoteka', '&Datei'),
     ('&Tools', 'A&lati', 'E&xtras'),
     ('&Settings...', 'Pos&tavke...', 'Ein&stellungen...'),
@@ -268,5 +268,32 @@ const
     ('Draw is CNC-only - switched to CNC output.', 'Crtanje je moguće samo s CNC-om - prebačeno na CNC izlaz.', 'Zeichnen ist nur mit CNC möglich - auf CNC-Ausgabe umgeschaltet.'),
     ('No copper found - nothing to draw.', 'Bakar nije pronađen - nema što crtati.', 'Kein Kupfer gefunden - nichts zu zeichnen.'),
     ('%d drawn shapes generated.', 'Generirano %d nacrtanih oblika.', '%d gezeichnete Formen erzeugt.'),
-    ('%d drawn shapes, %d parser warnings (see file for detail).', 'Generirano %d nacrtanih oblika, %d upozorenja (detalji u datoteci).', '%d gezeichnete Formen, %d Warnungen (Details in der Datei).')
+    ('%d drawn shapes, %d parser warnings (see file for detail).', 'Generirano %d nacrtanih oblika, %d upozorenja (detalji u datoteci).', '%d gezeichnete Formen, %d Warnungen (Details in der Datei).'),
+
+    // Phases 34-38 i18n batch (deferred at the time, added in the follow-on optimization pass)
+    ('New Parametric Tool', 'Novi parametarski alat', 'Neues parametrisches Werkzeug'),
+    ('Shape', 'Oblik', 'Form'),
+    ('Diameter (mm)', 'Promjer (mm)', 'Durchmesser (mm)'),
+    ('Shank diameter (mm)', 'Promjer drške (mm)', 'Schaftdurchmesser (mm)'),
+    ('Length (mm)', 'Duljina (mm)', 'Länge (mm)'),
+    ('Included angle (deg)', 'Kut vrha (°)', 'Spitzenwinkel (°)'),
+    ('Tip diameter (mm)', 'Promjer vrha (mm)', 'Spitzendurchmesser (mm)'),
+    ('Corner radius (mm)', 'Radijus zaobljenja (mm)', 'Eckenradius (mm)'),
+    ('Tip point angle (deg)', 'Kut šiljka svrdla (°)', 'Bohrerspitzenwinkel (°)'),
+    ('Endmill', 'Glodalo', 'Schaftfräser'),
+    ('Ball End', 'Kuglasto glodalo', 'Kugelfräser'),
+    ('Bull Nose', 'Glodalo zaobljenog vrha', 'Torusfräser'),
+    ('V-Bit', 'V-glodalo', 'V-Bit'),
+    ('Drill', 'Svrdlo', 'Bohrer'),
+    ('Chamfer', 'Skošenje', 'Fase'),
+    ('Load preset', 'Učitaj predložak', 'Vorlage laden'),
+    ('Parametric tool...', 'Parametarski alat...', 'Parametrisches Werkzeug...'),
+    ('Holding tabs (cutout)', 'Zadržni mostići (izrez)', 'Haltestege (Ausschnitt)'),
+    ('Tab count', 'Broj mostića', 'Anzahl Stege'),
+    ('Tab width (mm)', 'Širina mostića (mm)', 'Stegbreite (mm)'),
+    ('Header/Footer', 'Zaglavlje/Podnožje', 'Kopf-/Fußzeile'),
+    ('Apply on Send', 'Primijeni pri slanju', 'Bei Senden anwenden'),
+    ('Enqueues its g-code when clicked, or automatically at job Start/End if flagged (click a Start/End cell to toggle).', 'Dodaje svoj G-kod u red kad se klikne, ili automatski na Start/Kraj posla ako je označeno (klikni ćeliju Start/Kraj za promjenu).', 'Reiht seinen G-Code bei Klick ein, oder automatisch bei Job-Start/Ende wenn markiert (Start/Ende-Zelle anklicken zum Umschalten).'),
+    ('Connected', 'Povezano', 'Verbunden'),
+    ('Disconnected', 'Nije povezano', 'Nicht verbunden')
   );
