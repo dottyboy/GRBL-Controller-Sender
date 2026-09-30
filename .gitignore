@@ -29,6 +29,7 @@ tools/*
 !tools/qcad-plugin/
 !tools/freecad-macro/
 !tools/kicad-plugin/
+!tools/onnxruntime/
 
 # Internal status summary - for us, not for the repo
 STATUS.md

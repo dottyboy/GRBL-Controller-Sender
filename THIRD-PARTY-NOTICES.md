@@ -105,10 +105,13 @@ reconstructed later.
 - License: GPL-3.0 — confirmed via UGS's own `COPYING` file.
 - What's referenced: the `ugs-designer` module's vector-object actions (align/flip/
   group/boolean) are a design reference for Phase 12's SVG-editing UI, not ported code —
-  UGS is Java/NetBeans-Platform, structurally unrelated to this project. The
-  `depth-anything-v2-small.onnx` model it bundles, and its thin Java ONNX Runtime
-  wrapper, informed Phase 23's original native-Pascal design (Phase 23 is now DEFERRED —
-  see the GIMP-ML entry below for the currently-recommended path).
+  UGS is Java/NetBeans-Platform, structurally unrelated to this project. Phase 23's
+  `src/core/udepthmap.pas` ports the *concept* (not the code) of its
+  `AbstractOnnxDepthModel.java`/`DepthAnythingModel.java` - same preprocessing
+  (resize/normalize/CHW layout), same ONNX Runtime C API call shape, same hand-rolled
+  bilinear resize-back for the output - read directly from those two files, not guessed.
+  See the ONNX Runtime and depth-anything-v2-small entries below for the actual
+  redistributed dependencies this pulled in.
 
 ### Candle (GPL-3.0)
 
@@ -167,32 +170,63 @@ reconstructed later.
   specifically (an area FlatCAM's own ground-plane-clearing feature suggests it handles
   better than Visolate, though not yet confirmed by reading either parser closely).
 
-## Depth-map / relief-engraving reference (Phase 23, deferred)
+## Depth-map / relief-engraving (Phase 23)
 
-### MiDaS (MIT)
+### ONNX Runtime (MIT)
 
-- Project: <https://github.com/isl-org/MiDaS>
-- Copyright (c) 2019 Intel ISL (Intel Intelligent Systems Lab)
-- License: MIT.
-- What's referenced: the monocular depth-estimation model used by the GIMP-ML plugin
-  below. Phase 23 (native ONNX Runtime depth-map generation in this app itself) is
-  DEFERRED in favor of the GIMP-ML route for now — see Phase 23/28's own notes in the
-  plan file. Not compiled into or distributed with this project either way.
+- Project: <https://github.com/microsoft/onnxruntime>
+- Copyright (c) Microsoft Corporation
+- License: MIT — confirmed via the project's own `LICENSE` file (v1.30.0 tag checked
+  directly, not assumed).
+- What's used: `src/core/uonnxruntime.pas` dynamically loads the prebuilt
+  `libonnxruntime.so` (official Linux x64 release asset, not built from source) via
+  FPC's `dynlibs` and binds its C API (`onnxruntime_c_api.h`) - just the ~14 functions
+  Phase 23's single-input/single-output inference call needs. The C API is one flat
+  struct of function pointers with no individually-exported symbols, so struct field
+  *order* is the ABI; `src/core/uonnxruntime_api.inc`'s 426-member `TOrtApi` record was
+  generated from the real header (`tools/onnxruntime/generate_ortapi_record.py`, not
+  hand-transcribed) to guarantee every field lands at its correct byte offset. Verified
+  end-to-end: a real depth-estimation model run through this binding was compared
+  byte-for-byte against the same model run through Python's own `onnxruntime` package on
+  an identical input tensor (max abs diff: 0.0). **Distribution note (open item):** the
+  actual `libonnxruntime.so` binary this unit loads at runtime still needs a packaging
+  decision (bundle alongside the AppImage vs. document as a separate download) - not yet
+  made as of this writing.
 
-### GIMP-ML / GIMP3-ML (third-party GIMP plugin, license varies by fork)
+### depth-anything-v2-small (Apache-2.0)
 
-- Projects: <https://github.com/kritiksoman/GIMP-ML> (original),
+- Project: <https://huggingface.co/depth-anything/Depth-Anything-V2-Small> (original
+  checkpoint) / <https://huggingface.co/onnx-community/depth-anything-v2-small> (the
+  ONNX export this project actually downloads and runs, `onnx/model.onnx`)
+- License: Apache License 2.0 — confirmed via both HuggingFace model cards' own license
+  metadata directly, not assumed (checked specifically because Depth Anything V2's
+  larger Base/Large checkpoints are CC-BY-NC-4.0 - non-commercial - while only the Small
+  variant used here is Apache-2.0; this distinction was verified before writing any code
+  against this model, per Phase 23's own "resolve the license before bundling" gate in
+  the plan file).
+- What's used: `src/core/udepthmap.pas` runs this exact ONNX model (input tensor
+  `pixel_values` `[1,3,518,518]` float32, output `predicted_depth` `[1,518,518]`
+  float32 - shapes verified directly from the `.onnx` file's own graph via Python's
+  `onnx` package, not guessed) for monocular depth estimation. The model weights
+  themselves (~99MB) are a runtime dependency downloaded by the user/build process, not
+  vendored into this git repository. **Distribution note (open item):** same as ONNX
+  Runtime above - where the `.onnx` file itself should live at install/run time isn't
+  decided yet.
+
+### MiDaS (MIT) / GIMP-ML (third-party GIMP plugin, license varies by fork)
+
+- Projects: <https://github.com/isl-org/MiDaS>,
+  <https://github.com/kritiksoman/GIMP-ML> (original),
   <https://github.com/yantoz/GIMP-ML-Hub> and
   <https://github.com/UserUnknownFactor/GIMP3-ML> (GIMP-3-compatible forks)
-- License: not yet individually re-verified per fork as of this writing (flagged, not
-  assumed) — check the specific fork actually documented/recommended before this
-  project's own docs point users at it, same discipline as everything else in this file.
-- What's referenced: the currently-recommended path for Phase 23's "photo → real
-  depth-map" goal — install this third-party plugin inside GIMP, run its MiDaS-based
-  depth filter, then use this project's own Phase 28 bridge (original code) to send the
-  result into Phase 10's raster import. Not compiled into or distributed with this
-  project; purely documentation pointing at an optional external tool, same category as
-  PlatformIO/avrdude/autotrace below.
+- License: MiDaS itself is MIT (Copyright (c) 2019 Intel ISL). The GIMP-ML forks are not
+  individually re-verified per fork as of this writing (flagged, not assumed).
+- What's referenced: before Phase 23's native pipeline above existed, installing this
+  third-party plugin inside GIMP and using this project's own Phase 28 bridge (original
+  code) to send its MiDaS-based depth-map output into Phase 10's raster import was the
+  documented path for "photo → real depth-map". Still a valid alternative (no native
+  ONNX Runtime/model dependency to install), now optional rather than the only route.
+  Not compiled into or distributed with this project either way.
 
 ## grblHAL (GPL-3.0-or-later)
 
