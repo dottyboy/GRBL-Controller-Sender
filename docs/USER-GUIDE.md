@@ -5,10 +5,9 @@ app. See the top-level `README.md` first for the "test project, no
 warranty" disclaimer — it applies to everything below.
 
 **Coverage note**: this guide is being filled in group by group. The
-**Machine** group (this file's main content right now) is fully
-illustrated. The **Laser** and **Settings & Tools** groups still have
-their older, screenshot-free descriptions further down — those get the
-same treatment in a later pass.
+**Machine** and **Laser** groups are fully illustrated. The **Settings
+& Tools** group still has its older, screenshot-free descriptions
+further down — that gets the same treatment in a later pass.
 
 ## The three tab groups
 
@@ -155,6 +154,91 @@ RECEIVED traffic, not lines this app sends out — check the Editor's own
 status area or the relevant tab's own status message for confirmation
 that something was actually sent.
 
+## Raster Import tab
+
+![Raster Import tab](screenshots/raster-import-tab.png)
+
+Turns a photo/image into a laser-engraving program. **Open Image...**
+loads it, then pick a **Tool mode** (Dithering, or a fixed-threshold/
+grayscale-power mode), a **Dither** algorithm (Floyd-Steinberg and 8
+others), a scan **Direction**, **Min/Max power**, engraving **Feed**,
+and **Pixel size** (the physical size of one image pixel once
+engraved — smaller means finer detail and a much longer job). **Invert**
+flips the power mapping for a light-background/dark-marking material.
+**Generate** produces the program and hands it to the Editor/3D View.
+
+## SVG / Vectorize tab
+
+![SVG / Vectorize tab](screenshots/svg-vectorize-tab.png)
+
+Two independent input paths sharing one output pipeline:
+
+- **Open SVG...**: imports real vector paths directly. The color-filter
+  dropdown (default **All colors**) can restrict generation to just one
+  stroke/fill color at a time — useful for a multi-color design where
+  each color gets its own pass at its own power/feed, re-importing with
+  a different filter each time. **Generate from SVG** builds the
+  program from whichever shapes match the current filter.
+- **Open Image...** + **Vectorize**: turns a raster image into vector
+  outlines first (via **Threshold**), then **Generate from Vector**
+  builds the program from those; **Centerline** is a separate one-click
+  mode for line-art/text where you want the tool to follow the stroke's
+  own centerline rather than trace both edges of its outline.
+
+Either path can enable **Holding tabs** for a closed-cutout job — small
+uncut bridges at regular intervals (**Tab count**/**Tab width**) so the
+freed piece doesn't come loose mid-job; you cut through the last few by
+hand afterward.
+
+## Laser Test Patterns tab
+
+![Laser Test Patterns tab](screenshots/laser-test-patterns-tab.png)
+
+Generates calibration/test programs rather than a real job — pick a
+**Test type** (a feed×power or feed×pass grid, depending on type), fill
+in the grid's own start/end/column-count fields, an optional **Title**
+and per-cell power/feed **Label**, and **Generate G-Code**. Useful for
+dialing in a new material's settings before committing to it on the
+Materials tab.
+
+## Laser Control tab
+
+![Laser Control tab](screenshots/laser-control-tab.png)
+
+Only appears once a connected board is detected as laser-capable (real
+vendor sniffing — Ortur/Aufero/Longer/etc. — from its welcome banner,
+or grblHAL's own `$32` laser-mode setting; the built-in offline
+emulator doesn't send a matching banner, so this tab stays hidden when
+just trying the app without real hardware). The actual job-control
+surface for a laser run:
+
+- **Header/Footer**: free-text g-code prepended/appended to every run
+  (defaults to LaserGRBL's own real `G21`/`G90` header and `M5`
+  footer); **Load** picks a named preset instead of typing one by hand.
+- **Passes**: repeats the whole body this many times.
+- **Start / Pause / Abort**: the job controls. Abort always forces `M5`
+  first, regardless of what was running, on every abort path.
+- **Feed / Rapid / Power override**: live sliders/radio buttons sent as
+  real-time override commands while a job runs.
+- **Auto-cooling**: alternates Feed Hold/Resume at a fixed on/off
+  cadence during a run, for a laser that needs periodic rest.
+- **Arm test fire**: a deliberate two-step (checkbox + button) safety
+  gate before **Test Fire** actually turns the laser on at the given
+  power, with no motion.
+- **Macros → Edit Macros...**: jumps to the Macros tab (Settings &
+  Tools group) to manage the auto-run-capable custom buttons this tab's
+  own Start/Abort can trigger.
+
+## Materials tab
+
+![Materials tab](screenshots/materials-tab.png)
+
+A flat, persisted library of material presets (name, material type,
+power, speed, passes, notes) — **Add Material**/**Delete** manage rows,
+edit cells directly in the grid, **Apply to Laser Control** pushes the
+selected row's power/speed/passes straight into the Laser Control tab
+instead of re-typing them by hand each time you switch material.
+
 ## Tools tab
 
 A simple end-mill/bit table (diameter, flutes, length, stepover,
@@ -200,32 +284,24 @@ CNC — without a manual click.
 Rebind the keyboard-jog shortcuts listed under the Control tab above,
 without hand-editing `hotkeys.ini`.
 
-## Laser group
-
-Raster Import, SVG / Vectorize, Laser Test Patterns, Laser Control and
-Materials — the laser-engraving side of this app, fully built (image
-import + dithering, SVG import/vectorize/centerline tracing with
-color-filtered layers, holding tabs for cutouts, named header/footer
-presets, power/feed/rapid overrides, auto-cooling). Not yet illustrated
-with screenshots in this guide — a later pass covers this group the
-same way the Machine group is covered above.
-
 ## Language
 
 **Language** menu: English, Hrvatski, Deutsch. Switches immediately,
 persists across restarts. Coverage is thorough but not perfect — a few
 fields are still sized for English text and may clip slightly in
 Croatian or German (visible in a couple of the screenshots above too —
-e.g. Probe's "Probe fee[d]" and Gerber Import's field-label overlap at
-this window size, both real, both cosmetic).
+e.g. Probe's "Probe fee[d]", Gerber Import's field-label overlap, and
+SVG/Vectorize's "Generate from SVG"/"Generate from Vect[orize]" buttons
+overlapping their neighbors at this window size — all real, all
+cosmetic).
 
 ## What's not here yet
 
 - The PCB "clear all copper except traces" strategy (Gerber Import tab)
   — needs a board-outline Gerber layer and a fill-hatching toolpath
   generator, neither built yet.
-- This guide's own Laser and Settings & Tools group screenshots — text
-  descriptions above are accurate, just not yet illustrated.
+- This guide's own Settings & Tools group screenshots — text
+  descriptions further down are accurate, just not yet illustrated.
 
 If something else seems undocumented or behaves differently than
 described here, don't assume it's intentional — open an issue and ask.
