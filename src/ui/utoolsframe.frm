@@ -56,16 +56,16 @@ object ToolsFrame: TToolsFrame
       Left = 434
       Height = 26
       Top = 4
-      Width = 90
+      Width = 110
       Caption = 'Load preset'
       OnClick = BtnLoadPresetClick
       TabOrder = 4
     end
     object BtnParametric: TButton
-      Left = 528
+      Left = 548
       Height = 26
       Top = 4
-      Width = 130
+      Width = 140
       Caption = 'Parametric tool...'
       OnClick = BtnParametricClick
       TabOrder = 5
