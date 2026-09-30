@@ -1,15 +1,11 @@
-object ResumeJobForm: TResumeJobForm
-  Left = 300
+object ResumeJobFrame: TResumeJobFrame
+  Left = 0
   Height = 380
-  Top = 200
+  Top = 0
   Width = 420
-  BorderStyle = bsDialog
-  Caption = 'Resume Laser Job'
   ClientHeight = 380
   ClientWidth = 420
-  Position = poScreenCenter
-  OnCreate = FormCreate
-  LCLVersion = '4.8.0.0'
+  TabOrder = 0
   object LblCause: TLabel
     Left = 16
     Height = 15
@@ -106,26 +102,22 @@ object ResumeJobForm: TResumeJobForm
     Caption = 'Restore work offset'
     TabOrder = 7
   end
-  object BtnOK: TButton
+  object BtnResume: TButton
     Left = 196
     Height = 32
     Top = 320
     Width = 100
-    Caption = 'OK'
-    Default = True
-    ModalResult = 1
-    OnClick = BtnOKClick
+    Caption = 'Resume'
+    OnClick = BtnResumeClick
     TabOrder = 8
   end
-  object BtnCancel: TButton
+  object BtnAbort: TButton
     Left = 304
     Height = 32
     Top = 320
     Width = 100
-    Cancel = True
-    Caption = 'Cancel'
-    ModalResult = 2
-    OnClick = BtnCancelClick
+    Caption = 'Abort Job'
+    OnClick = BtnAbortClick
     TabOrder = 9
   end
 end

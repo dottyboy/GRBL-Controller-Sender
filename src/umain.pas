@@ -10,7 +10,7 @@ uses
   uappconfig, ugcode, uconnectframe, udroframe, ujogframe, uterminalframe,
   ueditorframe, usettingsform, uopengl3dframe, uprobeframe, utoolsframe,
   usettingsgridframe, ufluidncframe, ufirmwarebuilderframe, uspoilboardframe,
-  ui18n, ui18ncontrols, uhotkeys, ustatebuilder, uresumejobform,
+  ui18n, ui18ncontrols, uhotkeys, ustatebuilder, uresumejobframe,
   ulasercontrolframe, umaterialpreset, umaterialpresetframe, ucustombuttonframe,
   urasterimportframe, usvgimportframe, uhotkeysframe, ulasertestgenframe,
   ulaserusage, ulaserusagestore, ulaserusageform, usincrostart,
@@ -86,6 +86,7 @@ type
     TabLaserControl: TTabSheet;
     TabSafetyCountdown: TTabSheet;
     TabChecklist: TTabSheet;
+    TabResumeJob: TTabSheet;
     TabMaterials: TTabSheet;
     TabMacros: TTabSheet;
     TabHotkeys: TTabSheet;
@@ -113,6 +114,7 @@ type
     LaserControlFrame: TLaserControlFrame;
     SafetyCountdownFrame: TSafetyCountdownFrame;
     ChecklistFrame: TChecklistFrame;
+    ResumeJobFrame: TResumeJobFrame;
     MaterialPresetFrame: TMaterialPresetFrame;
     CustomButtonFrame: TCustomButtonFrame;
     HotkeysFrame: THotkeysFrame;
@@ -143,6 +145,8 @@ type
     procedure ChecklistRequested(AChecklist: TChecklist);
     procedure ChecklistProceeded(Sender: TObject);
     procedure ChecklistCancelled(Sender: TObject);
+    procedure ResumeJobDecided(Sender: TObject; AResumeLine: Integer; const AOpts: TResumeOptions);
+    procedure ResumeJobAborted(Sender: TObject);
     procedure PagesChange(Sender: TObject);
     procedure ApplyConnectionDefaults;
     procedure CaptureConnectionDefaults;
@@ -299,6 +303,16 @@ begin
   TabChecklist.Caption := 'Pre-flight Checklist';
   TabChecklist.TabVisible := False; // only shown while actually pending
 
+  // Plan Phase 5, converted from a modal dialog to a plain tab in the
+  // same session as the other 4 - same reasoning throughout (real,
+  // environment-level ShowModal crash in this X11/Qt5 setup). Reactive,
+  // not user-initiated (see OfferLaserResume, called from
+  // SenderStateChanged on an Alarm mid-job), so it stays hidden except
+  // during that exact moment.
+  TabResumeJob := PagesLaser.AddTabSheet;
+  TabResumeJob.Caption := 'Resume Job';
+  TabResumeJob.TabVisible := False;
+
   TabMaterials := PagesLaser.AddTabSheet;
   TabMaterials.Caption := 'Materials';
 
@@ -446,6 +460,11 @@ begin
   ChecklistFrame.Parent := TabChecklist;
   ChecklistFrame.OnProceed := @ChecklistProceeded;
   ChecklistFrame.OnCancelled := @ChecklistCancelled;
+
+  ResumeJobFrame := TResumeJobFrame.Create(TabResumeJob);
+  ResumeJobFrame.Parent := TabResumeJob;
+  ResumeJobFrame.OnResumeDecided := @ResumeJobDecided;
+  ResumeJobFrame.OnAborted := @ResumeJobAborted;
 
   TerminalFrame := TTerminalFrame.Create(TabTerminal);
   TerminalFrame.Parent := TabTerminal;
@@ -983,15 +1002,14 @@ begin
   // INTO Alarm (FAlarmDialogArmed guards repeats while still in Alarm; an
   // alarm with no active-and-unfinished laser job to resume - e.g. one
   // triggered by manual jogging - is correctly left alone). No separate
-  // forced M5 here before the dialog: grbl itself rejects ordinary g-code
+  // forced M5 here before the prompt: grbl itself rejects ordinary g-code
   // with error:9 (locked) while in Alarm until $X/$H, so an M5 sent from
   // here wouldn't reach the laser any sooner than grbl's own Alarm entry
-  // already should have. Note this call chain runs on the UI thread via
-  // TSenderThread.Execute's Synchronize (see FlushToUI) - ShowModal below
-  // blocks that Synchronize call, so the serial read/write loop pauses for
-  // as long as the dialog is open. Acceptable here: the machine is already
-  // halted (Alarm) and grbl won't act on further commands until $X/$H
-  // anyway, so nothing time-sensitive is being delayed.
+  // already should have. OfferLaserResume just shows the Resume Job tab
+  // and returns immediately (converted from a blocking ShowModal call in
+  // a later session - see uresumejobframe.pas's own doc comment) - the
+  // actual ResumeLaserJob/EndLaserJob call happens later, from that
+  // tab's own OnResumeDecided/OnAborted callbacks.
   isAlarm := Pos('ALARM', FSender.State.StateStr) = 1;
   progress := FSender.LaserJobProgress;
   if isAlarm and not FAlarmDialogArmed and progress.Active and
@@ -1008,8 +1026,6 @@ procedure TMainForm.OfferLaserResume;
 var
   progress: TLaserJobProgress;
   cause: string;
-  resumeLine: Integer;
-  opts: TResumeOptions;
   hasWCO: Boolean;
 begin
   progress := FSender.LaserJobProgress;
@@ -1020,12 +1036,24 @@ begin
 
   hasWCO := (FSender.State.WCOX <> 0) or (FSender.State.WCOY <> 0) or (FSender.State.WCOZ <> 0);
 
-  if TResumeJobForm.Execute(progress.Executed, progress.Sent, progress.Target, cause,
-       hasWCO, FSender.State.WCOX, FSender.State.WCOY, FSender.State.WCOZ,
-       resumeLine, opts) then
-    FSender.ResumeLaserJob(resumeLine, opts)
-  else
-    FSender.EndLaserJob; // declined - stop tracking a job that won't be resumed
+  TabResumeJob.TabVisible := True;
+  ResumeJobFrame.ShowResumeOptions(progress.Executed, progress.Sent, progress.Target, cause,
+    hasWCO, FSender.State.WCOX, FSender.State.WCOY, FSender.State.WCOZ);
+  ActivateTab(TabResumeJob);
+end;
+
+procedure TMainForm.ResumeJobDecided(Sender: TObject; AResumeLine: Integer; const AOpts: TResumeOptions);
+begin
+  TabResumeJob.TabVisible := False;
+  ActivateTab(TabLaserControl);
+  FSender.ResumeLaserJob(AResumeLine, AOpts);
+end;
+
+procedure TMainForm.ResumeJobAborted(Sender: TObject);
+begin
+  TabResumeJob.TabVisible := False;
+  ActivateTab(TabLaserControl);
+  FSender.EndLaserJob; // declined - stop tracking a job that won't be resumed
 end;
 
 end.
