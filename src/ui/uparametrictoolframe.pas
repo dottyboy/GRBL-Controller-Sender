@@ -1,30 +1,36 @@
-unit uparametrictoolform;
+unit uparametrictoolframe;
 
-{ TParametricToolForm: plan Phase 34's "wizard-like flow" half of the tool
+{ TParametricToolFrame: plan Phase 34's "wizard-like flow" half of the tool
   bit catalog - pick a shape template (Endmill/Ball End/Bull Nose/V-Bit/
   Drill/Chamfer), fill in ITS OWN real parameter set (utoolbits.pas,
   itself transcribed from a genuine local FreeCAD install's own default
   tool bit files), get a fully-specified tool. Complements the flat
   preset list (utoolsframe.pas's "Load preset" combo) for sizes/angles a
-  preset doesn't cover. Modal, no live-connection interaction at all -
-  pure arithmetic, same safe category as every other plain settings
-  dialog in this app. }
+  preset doesn't cover.
+
+  Converted from a modal dialog to a plain Settings & Tools tab in a
+  later session - this X11/Qt5 environment hit a real, reproducible
+  crash creating ANY second top-level window via ShowModal, confirmed
+  environment-level, not a code regression. "Add to Tool Table" now
+  fires OnToolCreated instead of setting ModalResult - umain.pas wires
+  it to utoolsframe.pas's own AddParametricTool, which does exactly what
+  the old modal's caller used to do with its return value. }
 
 {$mode objfpc}{$H+}
 
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, StdCtrls, Spin, ExtCtrls, Dialogs,
-  utoolbits, ui18n;
+  Classes, SysUtils, Forms, Controls, Graphics, StdCtrls, Spin, ExtCtrls,
+  Dialogs, utoolbits, ui18n;
 
 type
+  TOnToolCreated = procedure(const AName, AComment: string; ADiameter: Double) of object;
 
-  { TParametricToolForm }
+  { TParametricToolFrame }
 
-  TParametricToolForm = class(TForm)
-    BtnCancel: TButton;
-    BtnOK: TButton;
+  TParametricToolFrame = class(TFrame)
+    BtnAddToTools: TButton;
     CboShape: TComboBox;
     EdCornerRadius: TFloatSpinEdit;
     EdCuttingEdgeAngle: TFloatSpinEdit;
@@ -39,28 +45,32 @@ type
     LblLength: TLabel;
     LblShankDiameter: TLabel;
     LblShape: TLabel;
+    LblStatus: TLabel;
     LblTipAngle: TLabel;
     LblTipDiameter: TLabel;
+    procedure BtnAddToToolsClick(Sender: TObject);
     procedure CboShapeChange(Sender: TObject);
-    procedure FormCreate(Sender: TObject);
   private
+    FOnToolCreated: TOnToolCreated;
     function CurrentShape: TToolBitShape;
     function CurrentParams: TToolBitParams;
-    procedure UpdateFieldVisibility;
-  public
     function GetToolName: string;
     function GetToolComment: string;
-    function GetDiameter: Double;
+    procedure UpdateFieldVisibility;
+  public
+    constructor Create(AOwner: TComponent); override;
+    property OnToolCreated: TOnToolCreated read FOnToolCreated write FOnToolCreated;
   end;
 
 implementation
 
 {$R *.frm}
 
-{ TParametricToolForm }
+{ TParametricToolFrame }
 
-procedure TParametricToolForm.FormCreate(Sender: TObject);
+constructor TParametricToolFrame.Create(AOwner: TComponent);
 begin
+  inherited Create(AOwner);
   CboShape.Items.Add(T('Endmill'));
   CboShape.Items.Add(T('Ball End'));
   CboShape.Items.Add(T('Bull Nose'));
@@ -71,7 +81,7 @@ begin
   CboShapeChange(Self);
 end;
 
-function TParametricToolForm.CurrentShape: TToolBitShape;
+function TParametricToolFrame.CurrentShape: TToolBitShape;
 begin
   case CboShape.ItemIndex of
     0: Result := tbsEndmill;
@@ -85,7 +95,7 @@ begin
   end;
 end;
 
-procedure TParametricToolForm.CboShapeChange(Sender: TObject);
+procedure TParametricToolFrame.CboShapeChange(Sender: TObject);
 var
   p: TToolBitParams;
 begin
@@ -100,7 +110,7 @@ begin
   UpdateFieldVisibility;
 end;
 
-procedure TParametricToolForm.UpdateFieldVisibility;
+procedure TParametricToolFrame.UpdateFieldVisibility;
 var
   shape: TToolBitShape;
   showShank, showAngle, showTip, showCorner, showTipAngle: Boolean;
@@ -124,7 +134,7 @@ begin
   EdTipAngle.Visible := showTipAngle;
 end;
 
-function TParametricToolForm.CurrentParams: TToolBitParams;
+function TParametricToolFrame.CurrentParams: TToolBitParams;
 begin
   FillChar(Result, SizeOf(Result), 0);
   Result.Diameter := EdDiameter.Value;
@@ -136,7 +146,7 @@ begin
   Result.TipAngle := EdTipAngle.Value;
 end;
 
-function TParametricToolForm.GetToolName: string;
+function TParametricToolFrame.GetToolName: string;
 begin
   case CurrentShape of
     tbsVBit, tbsChamfer:
@@ -146,14 +156,17 @@ begin
   end;
 end;
 
-function TParametricToolForm.GetToolComment: string;
+function TParametricToolFrame.GetToolComment: string;
 begin
   Result := DescribeToolBit(CurrentShape, CurrentParams);
 end;
 
-function TParametricToolForm.GetDiameter: Double;
+procedure TParametricToolFrame.BtnAddToToolsClick(Sender: TObject);
 begin
-  Result := EdDiameter.Value;
+  if Assigned(FOnToolCreated) then
+    FOnToolCreated(GetToolName, GetToolComment, EdDiameter.Value);
+  LblStatus.Caption := T('Added.');
+  LblStatus.Font.Color := clGreen;
 end;
 
 end.

@@ -14,7 +14,8 @@ uses
   ulasercontrolframe, umaterialpreset, umaterialpresetframe, ucustombuttonframe,
   urasterimportframe, usvgimportframe, uhotkeysframe, ulasertestgenframe,
   ulaserusage, ulaserusagestore, ulaserusageform, usincrostart,
-  uaxiscalibrationframe, ugerberimportframe, uwificonfigframe;
+  uaxiscalibrationframe, ugerberimportframe, uwificonfigframe,
+  uparametrictoolframe;
 
 type
 
@@ -73,6 +74,7 @@ type
     TabView3D: TTabSheet;
     TabProbe: TTabSheet;
     TabTools: TTabSheet;
+    TabParametricTool: TTabSheet;
     TabSettingsGrid: TTabSheet;
     TabFluidNC: TTabSheet;
     TabFirmwareBuilder: TTabSheet;
@@ -97,6 +99,7 @@ type
     View3DFrame: TOpenGL3DFrame;
     ProbeFrame: TProbeFrame;
     ToolsFrame: TToolsFrame;
+    ParametricToolFrame: TParametricToolFrame;
     SettingsGridFrame: TSettingsGridFrame;
     FluidNCFrame: TFluidNCFrame;
     FirmwareBuilderFrame: TFirmwareBuilderFrame;
@@ -128,6 +131,8 @@ type
     procedure EditMacrosRequested(Sender: TObject);
     procedure WiFiConfigRequested(Sender: TObject);
     procedure WiFiDeviceSelected(const ADeviceString: string);
+    procedure ParametricToolRequested(Sender: TObject);
+    procedure ParametricToolCreated(const AName, AComment: string; ADiameter: Double);
     procedure PagesChange(Sender: TObject);
     procedure ApplyConnectionDefaults;
     procedure CaptureConnectionDefaults;
@@ -271,6 +276,13 @@ begin
   TabTools := PagesSettings.AddTabSheet;
   TabTools.Caption := 'Tools';
 
+  // Plan Phase 34, converted from a modal dialog to a plain tab in a
+  // later session - same reasoning as TabAxisCalibration's own creation
+  // comment (real, environment-level ShowModal crash in this X11/Qt5
+  // setup, confirmed not a code regression - a tab sidesteps it).
+  TabParametricTool := PagesSettings.AddTabSheet;
+  TabParametricTool.Caption := 'Parametric Tool';
+
   TabSettingsGrid := PagesSettings.AddTabSheet;
   TabSettingsGrid.Caption := 'Settings ($$)';
 
@@ -324,6 +336,11 @@ begin
   ToolsFrame := TToolsFrame.Create(TabTools);
   ToolsFrame.Parent := TabTools;
   ToolsFrame.SetSender(FSender);
+  ToolsFrame.OnParametricToolRequested := @ParametricToolRequested;
+
+  ParametricToolFrame := TParametricToolFrame.Create(TabParametricTool);
+  ParametricToolFrame.Parent := TabParametricTool;
+  ParametricToolFrame.OnToolCreated := @ParametricToolCreated;
 
   SettingsGridFrame := TSettingsGridFrame.Create(TabSettingsGrid);
   SettingsGridFrame.Parent := TabSettingsGrid;
@@ -717,6 +734,17 @@ procedure TMainForm.WiFiDeviceSelected(const ADeviceString: string);
 begin
   ConnectFrame.UseDeviceString(ADeviceString);
   ActivateTab(TabControl);
+end;
+
+procedure TMainForm.ParametricToolRequested(Sender: TObject);
+begin
+  ActivateTab(TabParametricTool);
+end;
+
+procedure TMainForm.ParametricToolCreated(const AName, AComment: string; ADiameter: Double);
+begin
+  ToolsFrame.AddParametricTool(AName, AComment, ADiameter);
+  ActivateTab(TabTools);
 end;
 
 procedure TMainForm.ActivateTab(ATab: TTabSheet);

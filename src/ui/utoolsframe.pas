@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, SysUtils, Math, Forms, Controls, StdCtrls, ExtCtrls, Grids, IniFiles,
-  usender, utoolbits, uparametrictoolform;
+  usender, utoolbits;
 
 const
   COL_NAME = 0;
@@ -22,6 +22,8 @@ type
     trimmed to the fields that matter for streaming: diameter and stepover
     feed into TCNCState so jogging/canvas code can use them). Persisted as
     a flat ini file, one section per tool row. }
+  TOnParametricToolRequested = procedure(Sender: TObject) of object;
+
   TToolsFrame = class(TFrame)
     BtnAdd: TButton;
     BtnDelete: TButton;
@@ -40,12 +42,16 @@ type
   private
     FSender: TSender;
     FFileName: string;
+    FOnParametricToolRequested: TOnParametricToolRequested;
     procedure LoadTools;
     procedure SaveTools;
     function AddBlankRow: Integer;
   public
     constructor Create(AOwner: TComponent); override;
     procedure SetSender(ASender: TSender);
+    procedure AddParametricTool(const AName, AComment: string; ADiameter: Double);
+    property OnParametricToolRequested: TOnParametricToolRequested
+      read FOnParametricToolRequested write FOnParametricToolRequested;
   end;
 
 implementation
@@ -181,24 +187,25 @@ begin
 end;
 
 procedure TToolsFrame.BtnParametricClick(Sender: TObject);
+begin
+  // Was a modal dialog (TParametricToolForm) - now just jumps to its own
+  // tab (wired in umain.pas); AddParametricTool below is that tab's own
+  // OnToolCreated handler, doing exactly what this handler used to do
+  // with the old modal's ShowModal=mrOK return values.
+  if Assigned(FOnParametricToolRequested) then
+    FOnParametricToolRequested(Self);
+end;
+
+procedure TToolsFrame.AddParametricTool(const AName, AComment: string; ADiameter: Double);
 var
-  frm: TParametricToolForm;
   row: Integer;
 begin
-  frm := TParametricToolForm.Create(Self);
-  try
-    if frm.ShowModal = mrOK then
-    begin
-      row := AddBlankRow;
-      Grid.Cells[COL_NAME, row] := frm.GetToolName;
-      Grid.Cells[COL_DIAMETER, row] := FormatFloat('0.###', frm.GetDiameter);
-      Grid.Cells[COL_COMMENT, row] := frm.GetToolComment;
-      Grid.Row := row;
-      SaveTools;
-    end;
-  finally
-    frm.Free;
-  end;
+  row := AddBlankRow;
+  Grid.Cells[COL_NAME, row] := AName;
+  Grid.Cells[COL_DIAMETER, row] := FormatFloat('0.###', ADiameter);
+  Grid.Cells[COL_COMMENT, row] := AComment;
+  Grid.Row := row;
+  SaveTools;
 end;
 
 procedure TToolsFrame.BtnDeleteClick(Sender: TObject);

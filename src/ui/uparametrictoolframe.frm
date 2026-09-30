@@ -1,14 +1,11 @@
-object ParametricToolForm: TParametricToolForm
-  Left = 300
+object ParametricToolFrame: TParametricToolFrame
+  Left = 0
   Height = 340
-  Top = 200
+  Top = 0
   Width = 360
-  BorderStyle = bsDialog
-  Caption = 'New Parametric Tool'
   ClientHeight = 340
   ClientWidth = 360
-  Position = poScreenCenter
-  OnCreate = FormCreate
+  TabOrder = 0
   object LblShape: TLabel
     Left = 16
     Height = 15
@@ -151,24 +148,20 @@ object ParametricToolForm: TParametricToolForm
     MinValue = 1
     TabOrder = 7
   end
-  object BtnOK: TButton
-    Left = 160
+  object BtnAddToTools: TButton
+    Left = 16
     Height = 30
     Top = 292
-    Width = 90
-    Caption = 'OK'
-    Default = True
-    ModalResult = 1
+    Width = 160
+    Caption = 'Add to Tool Table'
+    OnClick = BtnAddToToolsClick
     TabOrder = 8
   end
-  object BtnCancel: TButton
-    Left = 256
-    Height = 30
-    Top = 292
-    Width = 90
-    Caption = 'Cancel'
-    Cancel = True
-    ModalResult = 2
-    TabOrder = 9
+  object LblStatus: TLabel
+    Left = 190
+    Height = 17
+    Top = 298
+    Width = 3
+    Caption = ''
   end
 end
