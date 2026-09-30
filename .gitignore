@@ -16,7 +16,7 @@ __pycache__/
 .vscode/
 
 # reference-only clones of forked upstream projects, not part of this project's own repo
-References/
+references/
 
 # third-party build tooling binaries, not part of this project's own repo -
 # tools/* (not tools/) so the exceptions below (this project's OWN bridge
@@ -28,3 +28,6 @@ tools/*
 !tools/qcad-plugin/
 !tools/freecad-macro/
 !tools/kicad-plugin/
+
+# Internal status summary - for us, not for the repo
+STATUS.md
