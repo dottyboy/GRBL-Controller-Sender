@@ -206,11 +206,28 @@ Turns an ordinary photo into a real depth-estimated relief instead of a
 flat-luminance engraving — distinct from Raster Import above, which just
 maps brightness to power. **Load Photo...** runs the photo through a
 local ONNX depth-estimation model (a few seconds); once it reports
-**Depth map ready**, **Send to Raster Import** hands the resulting
-grayscale depth map to the Raster Import tab above (same hand-off this
-app's GIMP/Krita bridge plugins use), where it's already been run once
-through Generate with the current dithering settings — adjust and
-re-generate there as needed.
+**Depth map ready**, pick either destination:
+
+- **Send to Raster Import** hands the resulting grayscale depth map to
+  the Raster Import tab above (same hand-off this app's GIMP/Krita
+  bridge plugins use) for a **laser** job — power modulated by
+  brightness, Z fixed. It's already been run once through Generate with
+  the current dithering settings there — adjust and re-generate as
+  needed.
+- **Generate CNC Relief** turns the same depth map into a true 3D
+  surfacing toolpath instead — continuous X/Y/Z motion tracing the
+  photo's own height, for a **CNC** job (a ball-nose or similarly
+  rounded bit works best). Set **Pixel size** (also the scan's
+  stepover), **Max depth** (how far the deepest point cuts below the
+  surface), **Feed**, **Safe Z** (retract height), and **Direction**
+  (ZigZag is the default and the only one with zero mid-program
+  retracts, since every other direction needs to lift clear of the
+  material at each row/diagonal boundary). **Invert** flips which end of
+  the photo's depth range is the deepest cut. Goes straight to the
+  Editor/3D View, same as every other G-code generator in this app. This
+  is a drop-cutter approximation (no ball-nose radius compensation) —
+  keep the pixel size small relative to the tool's own radius for a
+  clean result.
 
 Needs two files this app doesn't bundle by default: `libonnxruntime.so`
 and a depth-model `.onnx` file, both expected in an `onnx-models/` folder

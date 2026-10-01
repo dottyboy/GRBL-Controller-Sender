@@ -158,6 +158,7 @@ type
     procedure GerberImportGenerated(const AProgramText: string);
     procedure RasterGenerated(const AProgramText: string);
     procedure DepthMapReady(const APngPath: string);
+    procedure DepthMapReliefGenerated(const AProgramText: string);
     procedure SvgGenerated(const AProgramText: string);
     procedure LaserTestGenGenerated(const AProgramText: string);
     procedure ApplyActiveLaserUsage;
@@ -427,6 +428,7 @@ begin
   DepthMapFrame := TDepthMapFrame.Create(TabDepthMap);
   DepthMapFrame.Parent := TabDepthMap;
   DepthMapFrame.OnDepthMapReady := @DepthMapReady;
+  DepthMapFrame.OnReliefGenerated := @DepthMapReliefGenerated;
 
   SvgImportFrame := TSvgImportFrame.Create(TabSvgImport);
   SvgImportFrame.Parent := TabSvgImport;
@@ -683,6 +685,13 @@ procedure TMainForm.DepthMapReady(const APngPath: string);
 begin
   RasterImportFrame.ImportFile(APngPath);
   ActivateTab(TabRasterImport);
+end;
+
+procedure TMainForm.DepthMapReliefGenerated(const AProgramText: string);
+begin
+  EditorFrame.LoadGeneratedText(AProgramText);
+  View3DRequestParse(Self);
+  ActivateTab(TabView3D);
 end;
 
 procedure TMainForm.SvgGenerated(const AProgramText: string);
