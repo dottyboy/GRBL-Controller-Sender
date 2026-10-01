@@ -15,7 +15,8 @@ uses
   urasterimportframe, usvgimportframe, uhotkeysframe, ulasertestgenframe,
   ulaserusage, ulaserusagestore, ulaserusageform, usincrostart,
   uaxiscalibrationframe, ugerberimportframe, uwificonfigframe,
-  uparametrictoolframe, usafetycountdownframe, uchecklistframe, uchecklist;
+  uparametrictoolframe, usafetycountdownframe, uchecklistframe, uchecklist,
+  udepthmapframe;
 
 type
 
@@ -81,6 +82,7 @@ type
     TabSpoilboard: TTabSheet;
     TabGerberImport: TTabSheet;
     TabRasterImport: TTabSheet;
+    TabDepthMap: TTabSheet;
     TabSvgImport: TTabSheet;
     TabLaserTestGen: TTabSheet;
     TabLaserControl: TTabSheet;
@@ -109,6 +111,7 @@ type
     SpoilboardFrame: TSpoilboardFrame;
     GerberImportFrame: TGerberImportFrame;
     RasterImportFrame: TRasterImportFrame;
+    DepthMapFrame: TDepthMapFrame;
     SvgImportFrame: TSvgImportFrame;
     LaserTestGenFrame: TLaserTestGenFrame;
     LaserControlFrame: TLaserControlFrame;
@@ -154,6 +157,7 @@ type
     procedure SpoilboardGenerated(const AProgramText: string);
     procedure GerberImportGenerated(const AProgramText: string);
     procedure RasterGenerated(const AProgramText: string);
+    procedure DepthMapReady(const APngPath: string);
     procedure SvgGenerated(const AProgramText: string);
     procedure LaserTestGenGenerated(const AProgramText: string);
     procedure ApplyActiveLaserUsage;
@@ -273,6 +277,12 @@ begin
 
   TabRasterImport := PagesLaser.AddTabSheet;
   TabRasterImport.Caption := 'Raster Import';
+
+  // Plan Phase 23 - photo depth-map relief import, feeds Raster Import
+  // (above) via the same file-based ImportFile bridge Phases 27/28/29
+  // already use for external tools, just in-process this time.
+  TabDepthMap := PagesLaser.AddTabSheet;
+  TabDepthMap.Caption := 'Depth Map';
 
   TabSvgImport := PagesLaser.AddTabSheet;
   TabSvgImport.Caption := 'SVG / Vectorize';
@@ -413,6 +423,10 @@ begin
   RasterImportFrame := TRasterImportFrame.Create(TabRasterImport);
   RasterImportFrame.Parent := TabRasterImport;
   RasterImportFrame.OnGenerated := @RasterGenerated;
+
+  DepthMapFrame := TDepthMapFrame.Create(TabDepthMap);
+  DepthMapFrame.Parent := TabDepthMap;
+  DepthMapFrame.OnDepthMapReady := @DepthMapReady;
 
   SvgImportFrame := TSvgImportFrame.Create(TabSvgImport);
   SvgImportFrame.Parent := TabSvgImport;
@@ -663,6 +677,12 @@ begin
   EditorFrame.LoadGeneratedText(AProgramText);
   View3DRequestParse(Self);
   ActivateTab(TabView3D);
+end;
+
+procedure TMainForm.DepthMapReady(const APngPath: string);
+begin
+  RasterImportFrame.ImportFile(APngPath);
+  ActivateTab(TabRasterImport);
 end;
 
 procedure TMainForm.SvgGenerated(const AProgramText: string);

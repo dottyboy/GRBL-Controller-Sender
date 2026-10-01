@@ -19,6 +19,11 @@ __pycache__/
 # reference-only clones of forked upstream projects, not part of this project's own repo
 references/
 
+# Phase 23's runtime-only ONNX assets (libonnxruntime.so, the depth model) -
+# a manual local copy for a dev build, same convention as references/ above;
+# see packaging/appimage/build-appimage.sh for how the AppImage gets its own.
+onnx-models/
+
 # third-party build tooling binaries, not part of this project's own repo -
 # tools/* (not tools/) so the exceptions below (this project's OWN bridge
 # plugin source, Phases 27-30) can still be tracked

@@ -38,6 +38,13 @@ function LoadGrayscaleImage(const AFileName: string; out AImage: TGrayscaleImage
   out AError: string): Boolean;
 function GrayscaleAt(const AImage: TGrayscaleImage; AX, AY: Integer): Byte; inline;
 
+{ Writes AImage out as a PNG - used by Phase 23's depth-map frame to hand
+  its result to Raster Import's existing file-based ImportFile (same
+  bridge-by-file pattern Phases 27/28/29 already use, rather than adding a
+  second, in-memory hand-off path). }
+function SaveGrayscaleImage(const AImage: TGrayscaleImage; const AFileName: string;
+  out AError: string): Boolean;
+
 { Loads AFileName and resamples it to ASize x ASize (square, matching a
   fixed ML model input size - Phase 23's depth-map model wants 518x518),
   also returning the image's original (pre-resample) dimensions in
@@ -176,6 +183,41 @@ begin
     Result := True;
   finally
     resized.Free;
+    bmp.Free;
+  end;
+end;
+
+function SaveGrayscaleImage(const AImage: TGrayscaleImage; const AFileName: string;
+  out AError: string): Boolean;
+var
+  bmp: TBGRABitmap;
+  x, y: Integer;
+  v: Byte;
+begin
+  Result := False;
+  AError := '';
+  if (AImage.Width <= 0) or (AImage.Height <= 0) then
+  begin
+    AError := 'Image has no pixels';
+    Exit;
+  end;
+
+  bmp := TBGRABitmap.Create(AImage.Width, AImage.Height);
+  try
+    for y := 0 to AImage.Height - 1 do
+      for x := 0 to AImage.Width - 1 do
+      begin
+        v := AImage.Pixels[y * AImage.Width + x];
+        bmp.SetPixel(x, y, BGRA(v, v, v, 255));
+      end;
+    try
+      bmp.SaveToFile(AFileName);
+      Result := True;
+    except
+      on E: Exception do
+        AError := E.Message;
+    end;
+  finally
     bmp.Free;
   end;
 end;

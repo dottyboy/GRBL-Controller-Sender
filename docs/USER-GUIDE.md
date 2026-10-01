@@ -6,12 +6,13 @@ warranty" disclaimer — it applies to everything below.
 
 **Coverage note**: all 18 real tabs across all three groups —
 **Machine**, **Laser**, **Settings & Tools** — are illustrated with
-real screenshots below. Six more tabs (WiFi Config, Axis Calibration,
-Parametric Tool, Pre-flight Checklist, Safety Countdown, Resume Job —
-see their own sections further down) exist but are described in text
-only so far, no screenshots yet — they used to be popup dialogs and
-were rebuilt as tabs later (see the note at the end of "Connecting"
-for why), so they're newer than the rest of this guide.
+real screenshots below. Seven more tabs (WiFi Config, Axis Calibration,
+Parametric Tool, Pre-flight Checklist, Safety Countdown, Resume Job,
+Depth Map — see their own sections further down) exist but are described
+in text only so far, no screenshots yet — six of those used to be popup
+dialogs and were rebuilt as tabs later (see the note at the end of
+"Connecting" for why); Depth Map is simply newer than the screenshot
+pass itself.
 
 ## The three tab groups
 
@@ -198,6 +199,26 @@ and **Pixel size** (the physical size of one image pixel once
 engraved — smaller means finer detail and a much longer job). **Invert**
 flips the power mapping for a light-background/dark-marking material.
 **Generate** produces the program and hands it to the Editor/3D View.
+
+## Depth Map tab
+
+Turns an ordinary photo into a real depth-estimated relief instead of a
+flat-luminance engraving — distinct from Raster Import above, which just
+maps brightness to power. **Load Photo...** runs the photo through a
+local ONNX depth-estimation model (a few seconds); once it reports
+**Depth map ready**, **Send to Raster Import** hands the resulting
+grayscale depth map to the Raster Import tab above (same hand-off this
+app's GIMP/Krita bridge plugins use), where it's already been run once
+through Generate with the current dithering settings — adjust and
+re-generate there as needed.
+
+Needs two files this app doesn't bundle by default: `libonnxruntime.so`
+and a depth-model `.onnx` file, both expected in an `onnx-models/` folder
+next to the running executable (the AppImage release already includes
+them; a from-source build needs a one-time manual copy — see
+`packaging/appimage/README.md`). If they're missing, **Load Photo...**
+reports exactly which file and where it looked, rather than failing
+silently.
 
 ## SVG / Vectorize tab
 
@@ -409,6 +430,8 @@ cosmetic).
   illustrated yet. Resume Job in particular can only be screenshotted
   with hand-picked sample values, not a real triggered Alarm — the
   built-in offline test emulator doesn't simulate one.
+- Screenshot for the Depth Map tab, for the same reason — accurate, not
+  yet illustrated.
 
 If something else seems undocumented or behaves differently than
 described here, don't assume it's intentional — open an issue and ask.
